@@ -10,20 +10,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
-
+  
 <header class="header">
   <div class="header-icon">📁</div>
   <div>
     <div class="header-title">نظام إدارة الأضاحي 2026</div>
     <div class="header-sub">Google Drive • مجلدات متداخلة • استخراج أسماء • دمج PDF</div>
   </div>
-  
-      </div>
-    <div class="token-hint">
-      احصل على التوكن من <a href="https://developers.google.com/oauthplayground" target="_blank">OAuth Playground</a>
-      ← Drive API v3 ← scope: <code>https://www.googleapis.com/auth/drive</code>
-    </div>
-  </div> 
   <div class="token-status">
     <div class="dot" id="conn-dot"></div>
     <span id="conn-label" style="color:var(--text3)">غير متصل</span>
@@ -41,7 +34,13 @@
     <div class="token-row">
       <input type="password" id="token-inp" placeholder="أدخل Access Token من Google OAuth..."/>
       <button class="btn btn-primary" onclick="verifyToken()">اتصال</button>
-
+    </div>
+    <div class="token-hint">
+      احصل على التوكن من <a href="https://developers.google.com/oauthplayground" target="_blank">OAuth Playground</a>
+      ← Drive API v3 ← scope: <code>https://www.googleapis.com/auth/drive</code>
+    </div>
+  </div>
+  
   <div class="tabs">
     <button class="tab active" onclick="switchTab('folders')">📁 إنشاء المجلدات</button>
     <button class="tab" onclick="switchTab('browse')">🔍 تصفح وإضافة</button>
