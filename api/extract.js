@@ -19,45 +19,64 @@ export default async function handler(req, res) {
 
     try {
       const buf = fs.readFileSync(file.path);
-      const b64 = buf.toString('base64');
+      const MISTRAL_KEY = process.env.MISTRAL_API_KEY;
 
-      const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      // 1. رفع الملف إلى Mistral Files API
+      const formData = new FormData();
+      formData.append('purpose', 'ocr');
+      formData.append('file', new Blob([buf], { type: 'application/pdf' }), file.originalFilename || 'file.pdf');
+
+      const uploadRes = await fetch('https://api.mistral.ai/v1/files', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.MISTRAL_API_KEY}`
-        },
+        headers: { 'Authorization': `Bearer ${MISTRAL_KEY}` },
+        body: formData
+      });
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) throw new Error(uploadData.message || 'فشل رفع الملف');
+      const fileId = uploadData.id;
+
+      // 2. الحصول على signed URL
+      const urlRes = await fetch(`https://api.mistral.ai/v1/files/${fileId}/url?expiry=1`, {
+        headers: { 'Authorization': `Bearer ${MISTRAL_KEY}` }
+      });
+      const urlData = await urlRes.json();
+      if (!urlRes.ok) throw new Error(urlData.message || 'فشل الحصول على رابط الملف');
+      const signedUrl = urlData.url;
+
+      // 3. استخراج الأسماء
+      const chatRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${MISTRAL_KEY}` },
         body: JSON.stringify({
           model: 'mistral-small-latest',
           messages: [{
             role: 'user',
             content: [
-              {
-                type: 'document_url',
-                document_url: `data:application/pdf;base64,${b64}`
-              },
-              {
-                type: 'text',
-                text: 'استخرج جميع أسماء الأشخاص من هذا الملف (عربي أو إنجليزي). أجب فقط بـ JSON بدون أي نص إضافي أو ماركداون: {"names": ["الاسم1", "الاسم2"]}'
-              }
+              { type: 'document_url', document_url: signedUrl },
+              { type: 'text', text: 'استخرج جميع أسماء الأشخاص من هذا الملف (عربي أو إنجليزي). أجب فقط بـ JSON بدون أي نص إضافي أو ماركداون: {"names": ["الاسم1", "الاسم2"]}' }
             ]
           }]
         })
       });
+      const chatData = await chatRes.json();
+      if (!chatRes.ok) throw new Error(chatData.message || 'خطأ في Mistral API');
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'خطأ في Mistral API');
+      // 4. حذف الملف بعد الاستخراج
+      await fetch(`https://api.mistral.ai/v1/files/${fileId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${MISTRAL_KEY}` }
+      });
 
-      const txt = data.choices?.[0]?.message?.content || '{"names":[]}';
+      const txt = chatData.choices?.[0]?.message?.content || '{"names":[]}';
       let names = [];
       try {
         const parsed = JSON.parse(txt.replace(/```json|```/g, '').trim());
         names = parsed.names || [];
       } catch {
-        // إذا ما رجع JSON نستخرج الأسماء من النص مباشرة
         names = txt.split('\n').map(l => l.replace(/^[\d\-\.\*\s]+/, '').trim()).filter(l => l.length > 2);
       }
       res.json({ names });
+
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
