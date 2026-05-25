@@ -24,7 +24,7 @@ export default async function handler(req, res) {
       const buf = fs.readFileSync(file.path);
       const b64 = buf.toString('base64');
 
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
       const result = await model.generateContent([
         { inlineData: { data: b64, mimeType: 'application/pdf' } },
         'استخرج جميع أسماء الأشخاص من هذا الملف (عربي أو إنجليزي). أجب فقط بـ JSON بدون أي نص إضافي أو ماركداون: {"names": ["الاسم1", "الاسم2"]}'
