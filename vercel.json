@@ -1,5 +1,19 @@
 {
   "rewrites": [
     { "source": "/(.*)", "destination": "/frontend/$1" }
+  ],
+  "functions": {
+    "api/extract.js": {
+      "maxDuration": 30
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "x-vercel-max-body-size", "value": "20mb" }
+      ]
+    }
   ]
 }
+
