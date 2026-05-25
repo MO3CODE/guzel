@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نظام إدارة الأضاحي 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-icon">📁</div>
+  <div>
+    <div class="header-title">نظام إدارة الأضاحي 2026</div>
+    <div class="header-sub">Google Drive • مجلدات متداخلة • استخراج أسماء • دمج PDF</div>
+  </div>
+  <div class="token-status">
+    <div class="dot" id="conn-dot"></div>
+    <span id="conn-label" style="color:var(--text3)">غير متصل</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Server status -->
+  <div id="server-status" style="margin-bottom:12px"></div>
+
+  <!-- Google Drive token -->
+  <div class="token-card">
+    <div class="token-card-title">🔑 الاتصال بـ Google Drive</div>
+    <div class="token-row">
+      <input type="password" id="token-inp" placeholder="أدخل Access Token من Google OAuth..."/>
+      <button class="btn btn-primary" onclick="verifyToken()">اتصال</button>
+    </div>
+    <div class="token-hint">
+      احصل على التوكن من <a href="https://developers.google.com/oauthplayground" target="_blank">OAuth Playground</a>
+      ← Drive API v3 ← scope: <code>https://www.googleapis.com/auth/drive</code>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('folders')">📁 إنشاء المجلدات</button>
+    <button class="tab" onclick="switchTab('browse')">🔍 تصفح وإضافة</button>
+    <button class="tab" onclick="switchTab('pdf-extract')">📄 استخراج PDF</button>
+    <button class="tab" onclick="switchTab('pdf-merge')">🗂 دمج PDF</button>
+  </div>
+
+  <!-- ══ TAB 1: Create Folders ══ -->
+  <div id="tab-folders" class="panel active">
+
+    <div class="card">
+      <div class="card-title">🏠 المجلد الرئيسي</div>
+      <div class="label">اسم المجلد الرئيسي في Drive</div>
+      <input type="text" id="root-name" value="الأضاحي 2026"/>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🌿 هيكل المجلدات الفرعية</div>
+      <div class="label">ابنِ هيكلاً متداخلاً — كل مجلد يمكن أن يحتوي مجلدات داخله</div>
+      <div id="tree-builder" style="margin-top:8px"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn" onclick="addNode(treeData,null)">+ مجلد رئيسي</button>
+        <button class="btn btn-sm" style="color:var(--text3)" onclick="clearTree()">↺ مسح الهيكل</button>
+      </div>
+      <div style="margin-top:14px">
+        <div class="label">معاينة الهيكل</div>
+        <div class="structure-box" id="tree-preview" style="min-height:60px">أضف مجلدات للمعاينة...</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 أسماء المجلدات الشخصية</div>
+      <div class="label">كل اسم في سطر مستقل — سيُطبَّق عليه الهيكل الفرعي أعلاه</div>
+      <textarea id="names-ta" placeholder="أحمد محمد علي&#10;خالد عبدالله&#10;فاطمة يوسف&#10;..." oninput="previewNames()"></textarea>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+        <span id="names-count" style="font-size:12px;color:var(--text3)"></span>
+        <span id="dup-warn" style="font-size:12px;color:var(--warning);display:none">⚠️ توجد أسماء مكررة</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🌳 معاينة الهيكل الكامل</div>
+      <div class="structure-box" id="struct-prev">أضف أسماء للمعاينة...</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🚀 الإنشاء</div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="create-btn" onclick="createFolders()" disabled>إنشاء المجلدات في Drive</button>
+        <button class="btn" onclick="resetAll()">↺ إعادة تعيين</button>
+      </div>
+      <div class="progress-wrap" id="prog-wrap" style="display:none">
+        <div class="progress-bar" id="prog-bar"></div>
+      </div>
+      <div style="margin-top:12px"><div class="log" id="folders-log">في انتظار البدء...</div></div>
+    </div>
+
+  </div>
+
+  <!-- ══ TAB 2: Browse & Add ══ -->
+  <div id="tab-browse" class="panel">
+
+    <div class="card">
+      <div class="card-title">🔍 تصفح مجلدات Drive</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="btn btn-primary" onclick="loadRoot()">تحميل مجلداتي</button>
+        <button class="btn" onclick="goUp()" id="go-up-btn" disabled>↑ رجوع</button>
+      </div>
+      <div class="breadcrumb" id="breadcrumb"><span class="bc-cur">Drive</span></div>
+      <div id="folder-browser"><div class="empty-state">اضغط "تحميل مجلداتي" لعرض مجلداتك</div></div>
+      <div style="font-size:12px;color:var(--text3);margin-top:8px">نقرة واحدة = تحديد ✅ &nbsp;•&nbsp; اضغط "↵ دخول" للدخول</div>
+    </div>
+
+    <div class="card" id="sel-folders-card" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="card-title" style="margin-bottom:0">✅ المجلدات المحددة (<span id="sel-count">0</span>)</div>
+        <button class="btn btn-sm" onclick="clearSel()">مسح الكل</button>
+      </div>
+      <div id="sel-folders-list" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🌿 هيكل المجلدات الجديدة</div>
+      <div class="label">ابنِ الهيكل الذي سيُضاف داخل كل مجلد محدد</div>
+      <div id="browse-tree-builder" style="margin-top:8px"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn" onclick="addNode(browseTree,null)">+ مجلد</button>
+        <button class="btn btn-sm" style="color:var(--text3)" onclick="clearBrowseTree()">↺ مسح</button>
+      </div>
+      <div style="margin-top:14px">
+        <div class="label">معاينة</div>
+        <div class="structure-box" id="browse-tree-preview" style="min-height:50px">أضف مجلدات...</div>
+      </div>
+      <hr class="divider">
+      <div class="btn-row">
+        <button class="btn btn-primary" id="add-to-sel-btn" onclick="addTreeToSelected()" disabled>🚀 إضافة للمجلدات المحددة</button>
+      </div>
+      <div class="progress-wrap" id="browse-prog-wrap" style="display:none">
+        <div class="progress-bar" id="browse-prog-bar"></div>
+      </div>
+      <div style="margin-top:12px"><div class="log" id="browse-log">في انتظار التحديد...</div></div>
+    </div>
+
+  </div>
+
+  <!-- ══ TAB 3: PDF Extract ══ -->
+  <div id="tab-pdf-extract" class="panel">
+
+    <div class="card">
+      <div class="card-title">📤 رفع ملف PDF</div>
+      <div class="upload-zone" id="uz-extract"
+        onclick="document.getElementById('f-extract').click()"
+        ondrop="dropExtract(event)" ondragover="dov(event)" ondragleave="dlv('uz-extract')">
+        <div class="uz-icon">📄</div>
+        <p>اسحب ملف PDF هنا أو اضغط للاختيار</p>
+        <p class="uz-hint">Claude AI يستخرج الأسماء تلقائياً (عربي / إنجليزي) — حتى 20MB</p>
+      </div>
+      <input type="file" id="f-extract" accept=".pdf" style="display:none" onchange="doExtract(this.files[0])">
+      <div id="extract-file-info" style="font-size:13px;color:var(--text2);margin-top:8px"></div>
+    </div>
+
+    <div class="card" id="extract-result-card" style="display:none">
+      <div class="card-title">👥 الأسماء المستخرجة</div>
+      <div id="extract-badge"></div>
+      <div id="extracted-table" style="margin-top:12px"></div>
+      <hr class="divider">
+      <div class="label">المجلد الذي سيُحفظ فيه ملف Excel</div>
+      <select id="folder-sel"><option value="">-- اختر مجلداً (اختياري) --</option></select>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="exportAndUpload()">📊 تصدير Excel ورفعه للمجلد</button>
+        <button class="btn" onclick="downloadXlsx()">⬇ تنزيل Excel فقط</button>
+      </div>
+    </div>
+
+    <div class="log" id="extract-log">انتظار ملف PDF...</div>
+
+  </div>
+
+  <!-- ══ TAB 4: PDF Merge ══ -->
+  <div id="tab-pdf-merge" class="panel">
+
+    <div class="card">
+      <div class="card-title">🗂 إضافة ملفات للدمج</div>
+      <div class="upload-zone" id="uz-merge"
+        onclick="document.getElementById('f-merge').click()"
+        ondrop="dropMerge(event)" ondragover="dov(event)" ondragleave="dlv('uz-merge')">
+        <div class="uz-icon">📂</div>
+        <p>اسحب ملفات PDF أو اضغط للاختيار</p>
+        <p class="uz-hint">يمكن اختيار أكثر من ملف • يُنزَّل الناتج على جهازك</p>
+      </div>
+      <input type="file" id="f-merge" accept=".pdf" multiple style="display:none" onchange="addMergeFiles(this.files)">
+    </div>
+
+    <div class="card" id="merge-list-card" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="card-title" style="margin-bottom:0">📋 الملفات (<span id="merge-count">0</span>)</div>
+        <button class="btn btn-sm" onclick="clearMerge()">🗑 مسح الكل</button>
+      </div>
+      <div id="merge-list" style="display:flex;flex-direction:column;gap:6px"></div>
+      <hr class="divider">
+      <div class="label">اسم الملف الناتج</div>
+      <input type="text" id="merge-out-name" value="الأضاحي_2026_مدمج.pdf"/>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="merge-btn" onclick="mergePDFs()">⬇ دمج وتنزيل على الجهاز</button>
+      </div>
+    </div>
+
+    <div class="log" id="merge-log">انتظار ملفات PDF...</div>
+
+  </div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "name": "adahi-manager",
+  "version": "1.0.0",
+  "dependencies": {
+    "@google/generative-ai": "^0.15.0",
+    "multiparty": "^4.2.3"
+  }
+}

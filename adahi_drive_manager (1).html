@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نظام إدارة الأضاحي 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f7f6f3;--surface:#fff;--surface2:#f0efe9;
+  --border:#e2e0d8;--border2:#ccc9be;
+  --text:#1a1916;--text2:#6b6860;--text3:#9e9b92;
+  --accent:#1d4ed8;--accent-bg:#eff4ff;--accent-text:#1e40af;
+  --success:#166534;--success-bg:#f0fdf4;
+  --danger:#991b1b;--danger-bg:#fef2f2;
+  --warning:#92400e;--warning-bg:#fffbeb;
+  --info-bg:#eff6ff;--radius:8px;--radius-lg:12px;
+  --mono:'IBM Plex Mono',monospace;
+}
+body{font-family:'IBM Plex Sans Arabic',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:15px;line-height:1.6}
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 2rem;display:flex;align-items:center;gap:16px;height:64px;position:sticky;top:0;z-index:100}
+.header-icon{width:38px;height:38px;background:var(--accent-bg);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:20px}
+.header-title{font-size:16px;font-weight:600}
+.header-sub{font-size:13px;color:var(--text2)}
+.token-status{margin-right:auto;display:flex;align-items:center;gap:8px;font-size:13px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--border2)}
+.dot.green{background:#22c55e}
+.container{max-width:880px;margin:0 auto;padding:2rem 1.5rem}
+.token-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem 1.5rem;margin-bottom:1.5rem}
+.token-card-title{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em}
+.token-row{display:flex;gap:8px}
+.token-row input{flex:1}
+.token-hint{font-size:12px;color:var(--text3);margin-top:8px}
+.token-hint a{color:var(--accent)}
+.tabs{display:flex;gap:2px;margin-bottom:1.5rem;background:var(--surface2);border-radius:var(--radius-lg);padding:4px;border:1px solid var(--border)}
+.tab{flex:1;padding:9px 10px;border-radius:var(--radius);font-size:13px;font-weight:500;cursor:pointer;border:none;background:none;color:var(--text2);transition:all .15s;font-family:inherit}
+.tab.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.tab:hover:not(.active){color:var(--text)}
+.panel{display:none}
+.panel.active{display:flex;flex-direction:column;gap:1rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem 1.5rem}
+.card-title{font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:1rem;display:flex;align-items:center;gap:8px}
+input[type=text],input[type=password],textarea,select{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:14px;background:var(--surface);color:var(--text);outline:none;transition:border-color .15s}
+input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+input[type=password]{font-family:var(--mono)}
+textarea{resize:vertical;min-height:120px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 18px;border-radius:var(--radius);font-size:14px;font-weight:500;cursor:pointer;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit;transition:all .15s;white-space:nowrap}
+.btn:hover{background:var(--surface2)}
+.btn:active{transform:scale(.98)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn-primary{background:var(--text);color:var(--surface);border-color:transparent}
+.btn-primary:hover{opacity:.85;background:var(--text)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.tag-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.tag{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:4px 12px;font-size:13px}
+.tag-remove{background:none;border:none;cursor:pointer;color:var(--text3);font-size:15px;line-height:1;padding:0}
+.tag-remove:hover{color:var(--danger)}
+.input-row{display:flex;gap:8px}
+.input-row input{flex:1}
+.structure-box{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;font-family:var(--mono);font-size:13px;color:var(--text2);white-space:pre;overflow-x:auto;line-height:1.8}
+.progress-wrap{background:var(--surface2);border-radius:99px;height:6px;margin:10px 0;overflow:hidden}
+.progress-bar{height:100%;background:var(--accent);border-radius:99px;transition:width .3s;width:0%}
+.log{background:#0f0f0e;border-radius:var(--radius);padding:1rem;font-family:var(--mono);font-size:12.5px;min-height:80px;max-height:220px;overflow-y:auto;color:#8a8a7a}
+.log-line{margin-bottom:3px}
+.log-line.s{color:#4ade80}
+.log-line.e{color:#f87171}
+.log-line.i{color:#60a5fa}
+.upload-zone{border:2px dashed var(--border2);border-radius:var(--radius-lg);padding:2.5rem 1.5rem;text-align:center;cursor:pointer;transition:all .15s}
+.upload-zone:hover,.upload-zone.over{border-color:var(--accent);background:var(--accent-bg)}
+.upload-zone .uz-icon{font-size:36px;margin-bottom:8px}
+.upload-zone p{font-size:14px;color:var(--text2)}
+.upload-zone .uz-hint{font-size:12px;color:var(--text3);margin-top:4px}
+.data-table{width:100%;border-collapse:collapse;font-size:13px}
+.data-table th{text-align:right;padding:8px 12px;background:var(--surface2);font-weight:600;border-bottom:1px solid var(--border);color:var(--text2);font-size:12px}
+.data-table td{padding:8px 12px;border-bottom:1px solid var(--border)}
+.data-table tr:last-child td{border-bottom:none}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 10px;border-radius:99px;font-weight:500}
+.badge-success{background:var(--success-bg);color:var(--success)}
+.badge-info{background:var(--info-bg);color:var(--accent-text)}
+.badge-warning{background:var(--warning-bg);color:var(--warning)}
+.merge-file{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius)}
+.merge-file-name{flex:1;font-size:13px}
+.merge-file-size{font-size:12px;color:var(--text3)}
+.merge-file-rm{background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;line-height:1}
+.merge-file-rm:hover{color:var(--danger)}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid transparent;border-top-color:currentColor;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.divider{border:none;border-top:1px solid var(--border);margin:1rem 0}
+.label{font-size:12px;color:var(--text2);margin-bottom:5px;font-weight:500}
+
+/* ── Tree Builder ── */
+.tree-node{margin-bottom:4px}
+.tree-node-row{display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);transition:border-color .15s}
+.tree-node-row:hover{border-color:var(--border2)}
+.tree-node-indent{display:flex;flex-direction:column;gap:4px;margin-top:4px;padding-right:24px;border-right:2px solid var(--border);margin-right:12px}
+.tree-node-name{flex:1;padding:4px 8px;border:1px solid transparent;border-radius:6px;background:transparent;font-size:13px;font-family:inherit;color:var(--text);outline:none;min-width:0}
+.tree-node-name:focus{border-color:var(--accent);background:var(--surface)}
+.tree-icon{font-size:16px;flex-shrink:0}
+.tree-btn{background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;padding:3px 8px;color:var(--text2);white-space:nowrap;font-family:inherit}
+.tree-btn:hover{background:var(--surface2);color:var(--text)}
+.tree-btn.del:hover{background:var(--danger-bg);color:var(--danger);border-color:var(--danger)}
+.tree-empty{font-size:13px;color:var(--text3);padding:12px 0;text-align:center}
+
+/* ── Browse tab ── */
+.breadcrumb{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:var(--text2);margin-bottom:12px}
+.bc-item{cursor:pointer;color:var(--accent)}
+.bc-item:hover{text-decoration:underline}
+.bc-cur{color:var(--text);font-weight:500}
+.folder-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-top:8px}
+.folder-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all .12s;font-size:13px}
+.folder-item:hover{background:var(--accent-bg);border-color:var(--accent)}
+.folder-item.sel{background:var(--accent-bg);border-color:var(--accent)}
+.fi-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel-folder-item{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--accent-bg);border:1px solid var(--accent);border-radius:var(--radius);font-size:13px}
+.sfi-path{flex:1;color:var(--text2);font-size:12px}
+.sfi-name{font-weight:500;color:var(--accent-text)}
+.empty-state{text-align:center;padding:2rem;color:var(--text3);font-size:14px}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-icon">📁</div>
+  <div>
+    <div class="header-title">نظام إدارة الأضاحي 2026</div>
+    <div class="header-sub">Google Drive • مجلدات متداخلة • استخراج أسماء • دمج PDF</div>
+  </div>
+  <div class="token-status">
+    <div class="dot" id="conn-dot"></div>
+    <span id="conn-label" style="color:var(--text3)">غير متصل</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="token-card">
+    <div class="token-card-title">🔑 الاتصال بـ Google Drive</div>
+    <div class="token-row">
+      <input type="password" id="token-inp" placeholder="أدخل Access Token من Google OAuth..."/>
+      <button class="btn btn-primary" onclick="verifyToken()">اتصال</button>
+    </div>
+    <div class="token-hint">احصل على التوكن من <a href="https://developers.google.com/oauthplayground" target="_blank">OAuth Playground</a> ← Drive API v3 ← scope: <code>https://www.googleapis.com/auth/drive</code></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('folders')">📁 إنشاء المجلدات</button>
+    <button class="tab" onclick="switchTab('browse')">🔍 تصفح وإضافة</button>
+    <button class="tab" onclick="switchTab('pdf-extract')">📄 استخراج PDF</button>
+    <button class="tab" onclick="switchTab('pdf-merge')">🗂 دمج PDF</button>
+  </div>
+
+  <!-- ══ TAB 1: Create Folders ══ -->
+  <div id="tab-folders" class="panel active">
+
+    <div class="card">
+      <div class="card-title">🏠 المجلد الرئيسي</div>
+      <div class="label">اسم المجلد الرئيسي في Drive</div>
+      <input type="text" id="root-name" value="الأضاحي 2026"/>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🌿 هيكل المجلدات الفرعية</div>
+      <div class="label">ابنِ هيكلاً متداخلاً — كل مجلد يمكن أن يحتوي مجلدات داخله</div>
+      <div id="tree-builder" style="margin-top:8px"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn" onclick="addNode(treeData,null)">+ مجلد رئيسي</button>
+        <button class="btn btn-sm" style="color:var(--text3)" onclick="clearTree()">↺ مسح الهيكل</button>
+      </div>
+      <div style="margin-top:14px">
+        <div class="label">معاينة الهيكل</div>
+        <div class="structure-box" id="tree-preview" style="min-height:60px">أضف مجلدات للمعاينة...</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 أسماء المجلدات الشخصية</div>
+      <div class="label">كل اسم في سطر مستقل — سيُطبَّق عليه الهيكل الفرعي أعلاه</div>
+      <textarea id="names-ta" placeholder="أحمد محمد علي&#10;خالد عبدالله&#10;فاطمة يوسف&#10;..." oninput="previewNames()"></textarea>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+        <span id="names-count" style="font-size:12px;color:var(--text3)"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🌳 معاينة الهيكل الكامل</div>
+      <div class="structure-box" id="struct-prev">أضف أسماء للمعاينة...</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🚀 الإنشاء</div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="create-btn" onclick="createFolders()" disabled>إنشاء المجلدات في Drive</button>
+        <button class="btn" onclick="resetAll()">↺ إعادة تعيين</button>
+      </div>
+      <div class="progress-wrap" id="prog-wrap" style="display:none"><div class="progress-bar" id="prog-bar"></div></div>
+      <div style="margin-top:12px"><div class="log" id="folders-log">في انتظار البدء...</div></div>
+    </div>
+
+  </div>
+
+  <!-- ══ TAB 2: Browse & Add ══ -->
+  <div id="tab-browse" class="panel">
+
+    <div class="card">
+      <div class="card-title">🔍 تصفح مجلدات Drive</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="btn btn-primary" onclick="loadRoot()">تحميل مجلداتي</button>
+        <button class="btn" onclick="goUp()" id="go-up-btn" disabled>↑ رجوع</button>
+      </div>
+      <div class="breadcrumb" id="breadcrumb"><span class="bc-cur">Drive</span></div>
+      <div id="folder-browser"><div class="empty-state">اضغط "تحميل مجلداتي" لعرض مجلداتك</div></div>
+      <div style="font-size:12px;color:var(--text3);margin-top:8px">نقرة واحدة = تحديد ✅ &nbsp;•&nbsp; نقرتان = دخول المجلد</div>
+    </div>
+
+    <div class="card" id="sel-folders-card" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="card-title" style="margin-bottom:0">✅ المجلدات المحددة (<span id="sel-count">0</span>)</div>
+        <button class="btn btn-sm" onclick="clearSel()">مسح الكل</button>
+      </div>
+      <div id="sel-folders-list" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🌿 هيكل المجلدات الجديدة</div>
+      <div class="label">ابنِ الهيكل الذي سيُضاف داخل كل مجلد محدد</div>
+      <div id="browse-tree-builder" style="margin-top:8px"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn" onclick="addNode(browseTree,null)">+ مجلد</button>
+        <button class="btn btn-sm" style="color:var(--text3)" onclick="clearBrowseTree()">↺ مسح</button>
+      </div>
+      <div style="margin-top:14px">
+        <div class="label">معاينة</div>
+        <div class="structure-box" id="browse-tree-preview" style="min-height:50px">أضف مجلدات...</div>
+      </div>
+      <hr class="divider">
+      <div class="btn-row">
+        <button class="btn btn-primary" id="add-to-sel-btn" onclick="addTreeToSelected()" disabled>🚀 إضافة للمجلدات المحددة</button>
+      </div>
+      <div class="progress-wrap" id="browse-prog-wrap" style="display:none"><div class="progress-bar" id="browse-prog-bar"></div></div>
+      <div style="margin-top:12px"><div class="log" id="browse-log">في انتظار التحديد...</div></div>
+    </div>
+
+  </div>
+
+  <!-- ══ TAB 3: PDF Extract ══ -->
+  <div id="tab-pdf-extract" class="panel">
+
+    <div class="card">
+      <div class="card-title">📤 رفع ملف PDF</div>
+      <div class="upload-zone" id="uz-extract" onclick="document.getElementById('f-extract').click()" ondrop="dropExtract(event)" ondragover="dov(event)" ondragleave="dlv('uz-extract')">
+        <div class="uz-icon">📄</div>
+        <p>اسحب ملف PDF هنا أو اضغط للاختيار</p>
+        <p class="uz-hint">الذكاء الاصطناعي يستخرج الأسماء تلقائياً (عربي / إنجليزي)</p>
+      </div>
+      <input type="file" id="f-extract" accept=".pdf" style="display:none" onchange="doExtract(this.files[0])">
+      <div id="extract-file-info" style="font-size:13px;color:var(--text2);margin-top:8px"></div>
+    </div>
+
+    <div class="card" id="extract-result-card" style="display:none">
+      <div class="card-title">👥 الأسماء المستخرجة</div>
+      <div id="extract-badge"></div>
+      <div id="extracted-table" style="margin-top:12px"></div>
+      <hr class="divider">
+      <div class="label">المجلد الذي سيُحفظ فيه ملف Excel</div>
+      <select id="folder-sel"><option value="">-- اختر مجلداً --</option></select>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="exportAndUpload()">📊 تصدير Excel ورفعه للمجلد</button>
+        <button class="btn" onclick="downloadXlsx()">⬇ تنزيل Excel فقط</button>
+      </div>
+    </div>
+
+    <div class="log" id="extract-log">انتظار ملف PDF...</div>
+
+  </div>
+
+  <!-- ══ TAB 4: PDF Merge ══ -->
+  <div id="tab-pdf-merge" class="panel">
+
+    <div class="card">
+      <div class="card-title">🗂 إضافة ملفات للدمج</div>
+      <div class="upload-zone" id="uz-merge" onclick="document.getElementById('f-merge').click()" ondrop="dropMerge(event)" ondragover="dov(event)" ondragleave="dlv('uz-merge')">
+        <div class="uz-icon">📂</div>
+        <p>اسحب ملفات PDF أو اضغط للاختيار</p>
+        <p class="uz-hint">يمكن اختيار أكثر من ملف • يُنزَّل الناتج على جهازك</p>
+      </div>
+      <input type="file" id="f-merge" accept=".pdf" multiple style="display:none" onchange="addMergeFiles(this.files)">
+    </div>
+
+    <div class="card" id="merge-list-card" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="card-title" style="margin-bottom:0">📋 الملفات (<span id="merge-count">0</span>)</div>
+        <button class="btn btn-sm" onclick="clearMerge()">🗑 مسح الكل</button>
+      </div>
+      <div id="merge-list" style="display:flex;flex-direction:column;gap:6px"></div>
+      <hr class="divider">
+      <div class="label">اسم الملف الناتج</div>
+      <input type="text" id="merge-out-name" value="الأضاحي_2026_مدمج.pdf"/>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="merge-btn" onclick="mergePDFs()">⬇ دمج وتنزيل على الجهاز</button>
+      </div>
+    </div>
+
+    <div class="log" id="merge-log">انتظار ملفات PDF...</div>
+
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════
+let token = '';
+let folderMap = {};
+let extractedNames = [];
+let mergeFiles = [];
+
+// ─── Tabs ───────────────────────────────────
+function switchTab(n) {
+  ['folders','browse','pdf-extract','pdf-merge'].forEach((t,i)=>{
+    document.querySelectorAll('.tab')[i].classList.toggle('active',t===n);
+    document.getElementById('tab-'+t).classList.toggle('active',t===n);
+  });
+}
+
+// ─── Token ──────────────────────────────────
+async function verifyToken() {
+  token = document.getElementById('token-inp').value.trim();
+  if (!token) return;
+  try {
+    const r = await fetch('https://www.googleapis.com/drive/v3/about?fields=user',{headers:{Authorization:'Bearer '+token}});
+    const d = await r.json();
+    if (r.ok) {
+      document.getElementById('conn-dot').className='dot green';
+      document.getElementById('conn-label').textContent=d.user?.displayName||'متصل';
+      document.getElementById('conn-label').style.color='#166534';
+      document.getElementById('create-btn').disabled=false;
+    } else { alert('❌ التوكن غير صحيح أو منتهي\n\nاحصل على توكن جديد من OAuth Playground'); token=''; }
+  } catch(e){ alert('خطأ: '+e.message); }
+}
+
+// ─── Log ────────────────────────────────────
+function addLog(id,msg,type=''){
+  const el=document.getElementById(id);
+  const d=document.createElement('div');
+  d.className='log-line '+type;
+  d.textContent=`[${new Date().toLocaleTimeString('ar-SA')}] ${msg}`;
+  el.appendChild(d); el.scrollTop=el.scrollHeight;
+}
+
+// ═══════════════════════════════════════════
+// TREE BUILDER (shared logic)
+// ═══════════════════════════════════════════
+// treeData = [ { id, name, children:[...] } ]
+let treeData = [];
+let browseTree = [];
+let _nodeId = 0;
+function newId(){ return ++_nodeId; }
+
+function addNode(arr, parentEl) {
+  const node = { id: newId(), name: '', children: [] };
+  arr.push(node);
+  renderTree(arr === treeData ? 'tree-builder' : 'browse-tree-builder',
+             arr, arr === treeData ? updateTreePreview : updateBrowseTreePreview);
+  // focus new input
+  setTimeout(()=>{
+    const inp = document.getElementById('n-'+node.id);
+    if(inp) inp.focus();
+  },50);
+}
+
+function removeNode(arr, id) {
+  function del(a){ for(let i=0;i<a.length;i++){ if(a[i].id===id){a.splice(i,1);return true;} if(del(a[i].children)) return true; } }
+  del(arr);
+  renderTree(arr===treeData?'tree-builder':'browse-tree-builder',
+             arr, arr===treeData?updateTreePreview:updateBrowseTreePreview);
+}
+
+function addChild(arr, parentId) {
+  function find(a){ for(const n of a){ if(n.id===parentId){const c={id:newId(),name:'',children:[]};n.children.push(c);return c;} const r=find(n.children);if(r)return r; } }
+  const newNode = find(arr);
+  renderTree(arr===treeData?'tree-builder':'browse-tree-builder',
+             arr, arr===treeData?updateTreePreview:updateBrowseTreePreview);
+  if(newNode) setTimeout(()=>{ const inp=document.getElementById('n-'+newNode.id); if(inp) inp.focus(); },50);
+}
+
+function updateName(arr, id, val) {
+  function set(a){ for(const n of a){ if(n.id===id){n.name=val;return;} set(n.children); } }
+  set(arr);
+  if(arr===treeData) updateTreePreview(); else updateBrowseTreePreview();
+}
+
+function renderTree(containerId, arr, onUpdate) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = arr.length ? renderNodes(arr, arr, 0) : '<div class="tree-empty">لا توجد مجلدات — اضغط "+ مجلد" للبدء</div>';
+  onUpdate();
+}
+
+function renderNodes(arr, root, depth) {
+  return arr.map(n => `
+    <div class="tree-node">
+      <div class="tree-node-row">
+        <span class="tree-icon">📁</span>
+        <input class="tree-node-name" id="n-${n.id}" value="${esc(n.name)}" placeholder="اسم المجلد..."
+          oninput="updateName(${root===treeData?'treeData':'browseTree'},${n.id},this.value)"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();addChild(${root===treeData?'treeData':'browseTree'},${n.id})}" />
+        <button class="tree-btn" onclick="addChild(${root===treeData?'treeData':'browseTree'},${n.id})" title="إضافة مجلد فرعي">+ فرعي</button>
+        <button class="tree-btn del" onclick="removeNode(${root===treeData?'treeData':'browseTree'},${n.id})" title="حذف">✕</button>
+      </div>
+      ${n.children.length ? `<div class="tree-node-indent">${renderNodes(n.children,root,depth+1)}</div>` : ''}
+    </div>`).join('');
+}
+
+function esc(s){ return (s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+function treeToText(nodes, prefix='') {
+  return nodes.map((n,i) => {
+    const isLast = i === nodes.length-1;
+    const connector = isLast ? '└─' : '├─';
+    const childPrefix = prefix + (isLast ? '   ' : '│  ');
+    const name = n.name || '(بدون اسم)';
+    return prefix+connector+' 📁 '+name + (n.children.length ? '\n'+treeToText(n.children, childPrefix) : '');
+  }).join('\n');
+}
+
+function updateTreePreview() {
+  const el = document.getElementById('tree-preview');
+  el.textContent = treeData.length ? treeToText(treeData) : 'أضف مجلدات للمعاينة...';
+  previewNames();
+}
+
+function updateBrowseTreePreview() {
+  const el = document.getElementById('browse-tree-preview');
+  el.textContent = browseTree.length ? treeToText(browseTree) : 'أضف مجلدات...';
+  checkBrowseBtn();
+}
+
+function clearTree() { treeData=[]; renderTree('tree-builder',treeData,updateTreePreview); }
+function clearBrowseTree() { browseTree=[]; renderTree('browse-tree-builder',browseTree,updateBrowseTreePreview); }
+
+// Init
+renderTree('tree-builder', treeData, updateTreePreview);
+renderTree('browse-tree-builder', browseTree, updateBrowseTreePreview);
+
+// ═══════════════════════════════════════════
+// CREATE FOLDERS (Tab 1)
+// ═══════════════════════════════════════════
+function getNames(){ return document.getElementById('names-ta').value.split('\n').map(n=>n.trim()).filter(n=>n); }
+
+function previewNames() {
+  const names = getNames();
+  const root = document.getElementById('root-name').value || 'الأضاحي 2026';
+  document.getElementById('names-count').textContent = names.length ? `${names.length} اسم` : '';
+  const el = document.getElementById('struct-prev');
+  if (!names.length) { el.textContent='أضف أسماء للمعاينة...'; return; }
+  let t = `📁 ${root}/\n`;
+  names.slice(0,3).forEach(n => {
+    t += `  └─ 📁 ${n}/\n`;
+    if (treeData.length) t += treeToText(treeData,'     ') + '\n';
+  });
+  if (names.length>3) t+=`  └─ ... و ${names.length-3} آخرين`;
+  el.textContent=t;
+}
+
+async function apiCreate(name, parentId) {
+  const body={name,mimeType:'application/vnd.google-apps.folder'};
+  if(parentId) body.parents=[parentId];
+  const r=await fetch('https://www.googleapis.com/drive/v3/files',{
+    method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+    body:JSON.stringify(body)
+  });
+  const d=await r.json();
+  if(!r.ok) throw new Error(d.error?.message||'خطأ');
+  return d.id;
+}
+
+async function createTreeUnder(nodes, parentId) {
+  for (const n of nodes) {
+    if (!n.name.trim()) continue;
+    const id = await apiCreate(n.name, parentId);
+    addLog('folders-log',`     └─ ✅ ${n.name}`,'s');
+    if (n.children.length) await createTreeUnder(n.children, id);
+  }
+}
+
+function countTreeNodes(nodes){ return nodes.reduce((s,n)=>s+1+countTreeNodes(n.children),0); }
+
+async function createFolders() {
+  const names=getNames();
+  if(!names.length){ alert('أدخل أسماء أولاً'); return; }
+  if(!token){ alert('يرجى الاتصال بـ Drive أولاً'); return; }
+  const root=document.getElementById('root-name').value||'الأضاحي 2026';
+  const btn=document.getElementById('create-btn');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> جاري الإنشاء...';
+  document.getElementById('folders-log').innerHTML='';
+  document.getElementById('prog-wrap').style.display='block';
+  document.getElementById('prog-bar').style.width='0%';
+  const treeCount=countTreeNodes(treeData);
+  const total=1+names.length*(1+treeCount);
+  let done=0;
+  const tick=()=>{ done++; document.getElementById('prog-bar').style.width=Math.round(done/total*100)+'%'; };
+  folderMap={};
+  try {
+    addLog('folders-log',`إنشاء: ${root}`,'i');
+    const rootId=await apiCreate(root,null); tick();
+    addLog('folders-log',`✅ ${root}`,'s');
+    const sel=document.getElementById('folder-sel');
+    sel.innerHTML='<option value="">-- اختر مجلداً --</option>';
+    for(const name of names){
+      addLog('folders-log',`📁 ${name}`,'i');
+      const fid=await apiCreate(name,rootId); folderMap[name]=fid; tick();
+      addLog('folders-log',`  ✅ ${name}`,'s');
+      const opt=document.createElement('option'); opt.value=fid; opt.textContent=name; sel.appendChild(opt);
+      if(treeData.length) await createTreeUnder(treeData,fid);
+    }
+    addLog('folders-log',`🎉 اكتمل! ${names.length} مجلد`+(treeCount?` + هيكل فرعي (${treeCount} مجلد/مجلد)`:' '),'s');
+  } catch(e){ addLog('folders-log',`❌ ${e.message}`,'e'); }
+  btn.disabled=false; btn.textContent='إنشاء المجلدات في Drive';
+}
+
+function resetAll(){
+  document.getElementById('names-ta').value='';
+  document.getElementById('names-count').textContent='';
+  document.getElementById('struct-prev').textContent='أضف أسماء للمعاينة...';
+  document.getElementById('folders-log').innerHTML='';
+  document.getElementById('prog-bar').style.width='0%';
+  document.getElementById('prog-wrap').style.display='none';
+}
+
+// ═══════════════════════════════════════════
+// BROWSE TAB
+// ═══════════════════════════════════════════
+let browseStack=[], selectedFolders=[];
+
+async function listFolders(parentId){
+  const q=parentId
+    ?`'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+    :`mimeType='application/vnd.google-apps.folder' and trashed=false and 'root' in parents`;
+  const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&orderBy=name&pageSize=100`,{headers:{Authorization:'Bearer '+token}});
+  const d=await r.json();
+  if(!r.ok) throw new Error(d.error?.message||'خطأ');
+  return d.files||[];
+}
+
+async function loadRoot(){
+  if(!token){alert('يرجى الاتصال بـ Drive أولاً');return;}
+  browseStack=[];
+  await loadBrowser(null);
+}
+
+async function loadBrowser(folderId){
+  const browser=document.getElementById('folder-browser');
+  browser.innerHTML='<div class="empty-state"><span class="spin"></span> جاري التحميل...</div>';
+  updateBC();
+  try{
+    const folders=await listFolders(folderId);
+    if(!folders.length){browser.innerHTML='<div class="empty-state">لا توجد مجلدات هنا</div>';return;}
+    browser.innerHTML=`<div class="folder-grid">${folders.map(f=>`
+      <div class="folder-item ${selectedFolders.some(s=>s.id===f.id)?'sel':''}" id="fi-${f.id}"
+        onclick="toggleSel('${f.id}','${f.name.replace(/'/g,"\\'")}','${browseStack.map(b=>b.name).concat(f.name).join(' / ').replace(/'/g,"\\'")}')">
+        <span style="font-size:20px">📁</span>
+        <div style="flex:1;min-width:0">
+          <div class="fi-name">${f.name}</div>
+          <div style="font-size:11px;color:var(--accent);margin-top:1px" onclick="event.stopPropagation();openF('${f.id}','${f.name.replace(/'/g,"\\'")}')">↵ دخول</div>
+        </div>
+      </div>`).join('')}</div>`;
+    document.getElementById('go-up-btn').disabled=browseStack.length===0;
+  }catch(e){browser.innerHTML=`<div class="empty-state">❌ ${e.message}</div>`;}
+}
+
+function toggleSel(id,name,path){
+  const idx=selectedFolders.findIndex(f=>f.id===id);
+  if(idx>=0){ selectedFolders.splice(idx,1); document.getElementById('fi-'+id)?.classList.remove('sel'); }
+  else { selectedFolders.push({id,name,path}); document.getElementById('fi-'+id)?.classList.add('sel'); }
+  renderSelFolders();
+}
+
+function openF(id,name){ browseStack.push({id,name}); loadBrowser(id); }
+
+function goUp(){
+  if(!browseStack.length) return;
+  browseStack.pop();
+  const p=browseStack[browseStack.length-1];
+  loadBrowser(p?p.id:null);
+}
+
+function updateBC(){
+  let h=`<span class="bc-item" onclick="browseStack=[];loadBrowser(null)">Drive</span>`;
+  browseStack.forEach((b,i)=>{
+    h+=`<span style="color:var(--text3)"> › </span>`;
+    if(i<browseStack.length-1) h+=`<span class="bc-item" onclick="browseStack=browseStack.slice(0,${i+1});loadBrowser('${b.id}')">${b.name}</span>`;
+    else h+=`<span class="bc-cur">${b.name}</span>`;
+  });
+  document.getElementById('breadcrumb').innerHTML=h;
+}
+
+function renderSelFolders(){
+  const card=document.getElementById('sel-folders-card');
+  document.getElementById('sel-count').textContent=selectedFolders.length;
+  card.style.display=selectedFolders.length?'block':'none';
+  document.getElementById('sel-folders-list').innerHTML=selectedFolders.map((f,i)=>`
+    <div class="sel-folder-item">
+      <span style="font-size:18px">📁</span>
+      <div style="flex:1;min-width:0">
+        <div class="sfi-name">${f.name}</div>
+        <div class="sfi-path">${f.path}</div>
+      </div>
+      <button class="btn btn-sm" onclick="selectedFolders.splice(${i},1);renderSelFolders();document.getElementById('fi-${f.id}')?.classList.remove('sel')" style="padding:3px 8px">✕</button>
+    </div>`).join('');
+  checkBrowseBtn();
+}
+
+function clearSel(){ selectedFolders=[]; renderSelFolders(); document.querySelectorAll('.folder-item.sel').forEach(e=>e.classList.remove('sel')); }
+function checkBrowseBtn(){ document.getElementById('add-to-sel-btn').disabled=selectedFolders.length===0||browseTree.length===0; }
+
+async function addTreeToSelected(){
+  if(!selectedFolders.length||!browseTree.length) return;
+  if(!token){alert('يرجى الاتصال بـ Drive أولاً');return;}
+  const btn=document.getElementById('add-to-sel-btn');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> جاري الإضافة...';
+  document.getElementById('browse-log').innerHTML='';
+  const tc=countTreeNodes(browseTree);
+  const total=selectedFolders.length*tc;
+  let done=0;
+  document.getElementById('browse-prog-wrap').style.display='block';
+  document.getElementById('browse-prog-bar').style.width='0%';
+  const tick2=()=>{ done++; document.getElementById('browse-prog-bar').style.width=Math.round(done/total*100)+'%'; };
+
+  async function createBrowseTree(nodes, parentId){
+    for(const n of nodes){
+      if(!n.name.trim()) continue;
+      const id=await apiCreate(n.name,parentId); tick2();
+      addLog('browse-log',`  └─ ✅ ${n.name}`,'s');
+      if(n.children.length) await createBrowseTree(n.children,id);
+    }
+  }
+
+  try{
+    for(const f of selectedFolders){
+      addLog('browse-log',`📁 داخل: ${f.name}`,'i');
+      await createBrowseTree(browseTree,f.id);
+    }
+    addLog('browse-log',`🎉 اكتمل!`,'s');
+  }catch(e){ addLog('browse-log',`❌ ${e.message}`,'e'); }
+  btn.disabled=false; btn.textContent='🚀 إضافة للمجلدات المحددة';
+}
+
+// ═══════════════════════════════════════════
+// PDF EXTRACT
+// ═══════════════════════════════════════════
+function dov(e){e.preventDefault();e.currentTarget.classList.add('over')}
+function dlv(id){document.getElementById(id).classList.remove('over')}
+function dropExtract(e){e.preventDefault();dlv('uz-extract');doExtract(e.dataTransfer.files[0])}
+function dropMerge(e){e.preventDefault();dlv('uz-merge');addMergeFiles(e.dataTransfer.files)}
+
+async function doExtract(file){
+  if(!file||file.type!=='application/pdf') return;
+  document.getElementById('extract-file-info').textContent=`📄 ${file.name} (${(file.size/1024).toFixed(0)} KB)`;
+  document.getElementById('extract-result-card').style.display='block';
+  document.getElementById('extract-badge').innerHTML='<span class="badge badge-info"><span class="spin"></span> جاري الاستخراج...</span>';
+  addLog('extract-log',`معالجة: ${file.name}`,'i');
+  const b64=await toB64(file);
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:[
+        {type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},
+        {type:'text',text:'استخرج جميع أسماء الأشخاص من هذا الملف (عربي أو إنجليزي). أجب فقط بـ JSON بدون أي نص إضافي أو ماركداون: {"names": ["الاسم1", "الاسم2"]}'}
+      ]}]})
+    });
+    const data=await res.json();
+    const txt=data.content?.[0]?.text||'{"names":[]}';
+    const parsed=JSON.parse(txt.replace(/```json|```/g,'').trim());
+    extractedNames=parsed.names||[];
+    document.getElementById('extract-badge').innerHTML=`<span class="badge badge-success">✅ ${extractedNames.length} اسم مستخرج</span>`;
+    document.getElementById('extracted-table').innerHTML=`<table class="data-table"><thead><tr><th>#</th><th>الاسم</th></tr></thead><tbody>${extractedNames.map((n,i)=>`<tr><td>${i+1}</td><td>${n}</td></tr>`).join('')}</tbody></table>`;
+    addLog('extract-log',`✅ استُخرج ${extractedNames.length} اسم`,'s');
+  }catch(e){
+    document.getElementById('extract-badge').innerHTML=`<span class="badge badge-warning">❌ ${e.message}</span>`;
+    addLog('extract-log',`❌ ${e.message}`,'e');
+  }
+}
+
+async function exportAndUpload(){
+  if(!extractedNames.length) return;
+  const blob=buildXlsx();
+  const fid=document.getElementById('folder-sel').value;
+  if(fid&&token){
+    addLog('extract-log','رفع Excel إلى Drive...','i');
+    try{
+      const meta=JSON.stringify({name:'أسماء_الأضاحي.xlsx',parents:[fid]});
+      const fd=new FormData();
+      fd.append('metadata',new Blob([meta],{type:'application/json'}));
+      fd.append('file',blob);
+      const r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{Authorization:'Bearer '+token},body:fd});
+      if(r.ok) addLog('extract-log','✅ تم رفع Excel','s');
+      else addLog('extract-log','❌ فشل الرفع','e');
+    }catch(e){ addLog('extract-log','❌ '+e.message,'e'); }
+  }
+  dl(blob,'أسماء_الأضاحي.xlsx');
+}
+
+function downloadXlsx(){ if(!extractedNames.length) return; dl(buildXlsx(),'أسماء_الأضاحي.xlsx'); }
+
+function buildXlsx(){
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([['#','الاسم'],...extractedNames.map((n,i)=>[i+1,n])]);
+  XLSX.utils.book_append_sheet(wb,ws,'أسماء');
+  const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  return new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+
+// ═══════════════════════════════════════════
+// PDF MERGE
+// ═══════════════════════════════════════════
+function addMergeFiles(files){ Array.from(files).filter(f=>f.type==='application/pdf').forEach(f=>mergeFiles.push(f)); renderMergeList(); }
+function renderMergeList(){
+  document.getElementById('merge-list-card').style.display=mergeFiles.length?'block':'none';
+  document.getElementById('merge-count').textContent=mergeFiles.length;
+  document.getElementById('merge-list').innerHTML=mergeFiles.map((f,i)=>`
+    <div class="merge-file">
+      <span style="font-size:18px">📄</span>
+      <span class="merge-file-name">${f.name}</span>
+      <span class="merge-file-size">${(f.size/1024).toFixed(0)} KB</span>
+      <button class="merge-file-rm" onclick="mergeFiles.splice(${i},1);renderMergeList()">×</button>
+    </div>`).join('');
+}
+function clearMerge(){ mergeFiles=[]; renderMergeList(); }
+
+async function mergePDFs(){
+  if(!mergeFiles.length) return;
+  const btn=document.getElementById('merge-btn');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> جاري الدمج...';
+  addLog('merge-log',`دمج ${mergeFiles.length} ملف...`,'i');
+  try{
+    const merged=await PDFLib.PDFDocument.create();
+    for(const f of mergeFiles){
+      addLog('merge-log',`دمج: ${f.name}`,'i');
+      const buf=await f.arrayBuffer();
+      const doc=await PDFLib.PDFDocument.load(buf);
+      const pages=await merged.copyPages(doc,doc.getPageIndices());
+      pages.forEach(p=>merged.addPage(p));
+    }
+    const bytes=await merged.save();
+    const outName=document.getElementById('merge-out-name').value||'مدمج.pdf';
+    dl(new Blob([bytes],{type:'application/pdf'}),outName);
+    addLog('merge-log',`✅ تم: ${outName}`,'s');
+  }catch(e){ addLog('merge-log',`❌ ${e.message}`,'e'); }
+  btn.disabled=false; btn.textContent='⬇ دمج وتنزيل على الجهاز';
+}
+
+// ═══════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════
+function toB64(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(file); }); }
+function dl(blob,name){ const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url); }
+</script>
+</body>
+</html>
