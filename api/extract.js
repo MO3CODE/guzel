@@ -1,8 +1,5 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const multiparty = require('multiparty');
 const fs = require('fs');
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export const config = { api: { bodyParser: false } };
 
@@ -24,13 +21,34 @@ export default async function handler(req, res) {
       const buf = fs.readFileSync(file.path);
       const b64 = buf.toString('base64');
 
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-      const result = await model.generateContent([
-        { inlineData: { data: b64, mimeType: 'application/pdf' } },
-        'استخرج جميع أسماء الأشخاص من هذا الملف (عربي أو إنجليزي). أجب فقط بـ JSON بدون أي نص إضافي أو ماركداون: {"names": ["الاسم1", "الاسم2"]}'
-      ]);
+      const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.MISTRAL_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'mistral-small-latest',
+          messages: [{
+            role: 'user',
+            content: [
+              {
+                type: 'document_url',
+                document_url: `data:application/pdf;base64,${b64}`
+              },
+              {
+                type: 'text',
+                text: 'استخرج جميع أسماء الأشخاص من هذا الملف (عربي أو إنجليزي). أجب فقط بـ JSON بدون أي نص إضافي أو ماركداون: {"names": ["الاسم1", "الاسم2"]}'
+              }
+            ]
+          }]
+        })
+      });
 
-      const txt = result.response.text() || '{"names":[]}';
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'خطأ في Mistral API');
+
+      const txt = data.choices?.[0]?.message?.content || '{"names":[]}';
       const parsed = JSON.parse(txt.replace(/```json|```/g, '').trim());
       res.json({ names: parsed.names || [] });
     } catch (e) {
