@@ -49,8 +49,15 @@ export default async function handler(req, res) {
       if (!response.ok) throw new Error(data.message || 'خطأ في Mistral API');
 
       const txt = data.choices?.[0]?.message?.content || '{"names":[]}';
-      const parsed = JSON.parse(txt.replace(/```json|```/g, '').trim());
-      res.json({ names: parsed.names || [] });
+      let names = [];
+      try {
+        const parsed = JSON.parse(txt.replace(/```json|```/g, '').trim());
+        names = parsed.names || [];
+      } catch {
+        // إذا ما رجع JSON نستخرج الأسماء من النص مباشرة
+        names = txt.split('\n').map(l => l.replace(/^[\d\-\.\*\s]+/, '').trim()).filter(l => l.length > 2);
+      }
+      res.json({ names });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
