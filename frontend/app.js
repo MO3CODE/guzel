@@ -861,8 +861,13 @@ async function vlWriteToSheet() {
       const chunk = values.slice(i, i + CHUNK);
       const rowStart = (startRow - 1) + i; // 0-indexed
 
-      const rows = chunk.map(rowVals => ({
-        values: rowVals.map(v => ({ userEnteredValue: { stringValue: v } }))
+      const rows = chunk.map((rowVals, ri) => ({
+        values: rowVals.map((v, ci) => {
+          // First column = link → wrap as HYPERLINK formula to show as clickable button label
+          if (ci === 0) return { userEnteredValue: { formulaValue: `=HYPERLINK("${v}","▶ فيديو")` } };
+          // Other columns (name etc.) stay as plain text
+          return { userEnteredValue: { stringValue: v } };
+        })
       }));
 
       const r = await fetch(
