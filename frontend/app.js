@@ -805,17 +805,18 @@ async function vlWriteToSheet() {
   try {
     const values = vlVideos.map(f => inclName ? [getLink(f), f.name] : [getLink(f)]);
     const endCol = inclName ? String.fromCharCode(col.charCodeAt(0)+1) : col;
+    const safeSheet = sheetName.replace(/'/g, "\\'");
     const CHUNK = 100;
     let written = 0;
     for (let i = 0; i < values.length; i += CHUNK) {
       const chunk = values.slice(i, i + CHUNK);
       const r0 = startRow + i, r1 = r0 + chunk.length - 1;
-      const safeSheet = sheetName.replace(/'/g, "\\'");
       const range = `'${safeSheet}'!${col}${r0}:${endCol}${r1}`;
+      // Use batchUpdate so range stays in JSON body — avoids URL-encoding issues with sheet names
       const r = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(range).replace(/%27/g, "'")}?valueInputOption=USER_ENTERED`,
-        { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ range, majorDimension: 'ROWS', values: chunk }) }
+        `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values:batchUpdate`,
+        { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data: [{ range, majorDimension: 'ROWS', values: chunk }] }) }
       );
       const d = await r.json();
       if (!r.ok) throw new Error(d.error?.message || `خطأ ${r.status} في Sheets API`);
