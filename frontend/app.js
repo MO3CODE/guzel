@@ -828,6 +828,8 @@ async function vlWriteToSheet() {
     addLog('vl-log', `❌ ${e.message}`, 'e');
     if (e.message.includes('403'))
       addLog('vl-log', '⚠️ أضف scope: https://www.googleapis.com/auth/spreadsheets للتوكن', 'e');
+    if (e.message.includes('not supported') || e.message.includes('Office file') || e.message.includes('must not be'))
+      addLog('vl-log', '⚠️ الملف ليس Google Sheet أصلي — افتح الملف في Drive ← اضغط "فتح بـ Google Sheets" ← انسخ الـ ID الجديد', 'e');
   }
   btn.disabled = false; btn.textContent = '✍️ كتابة الروابط في الشيت الآن';
 }
