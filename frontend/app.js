@@ -819,8 +819,10 @@ async function vlWriteToSheet() {
   const sheetId = document.getElementById('vl-sheet-id').value.trim();
   if (!sheetId) { alert('أدخل معرّف الشيت (Sheet ID)'); return; }
   const sheetName = document.getElementById('vl-sheet-name').value || 'Sheet1';
-  const col = (document.getElementById('vl-col').value || 'C').toUpperCase();
+  const col    = (document.getElementById('vl-col').value    || 'C').toUpperCase();
+  const numCol = (document.getElementById('vl-num-col').value || 'A').toUpperCase();
   const startRow = parseInt(document.getElementById('vl-start-row').value) || 2;
+  const endRow   = parseInt(document.getElementById('vl-end-row').value)   || 301;
   const inclName = document.getElementById('vl-include-name').checked;
   const linkType = document.getElementById('vl-link-type').value;
   function getLink(f) {
@@ -834,12 +836,12 @@ async function vlWriteToSheet() {
   document.getElementById('vl-prog-bar').style.width = '0%';
   addLog('vl-log', `📝 بدء الكتابة في الشيت...`, 'i');
   try {
-    const values = vlVideos.map(f => inclName ? [getLink(f), f.name] : [getLink(f)]);
-    const colIdx = col.charCodeAt(0) - 65; // A=0, B=1, C=2 ...
-    const colCount = inclName ? 2 : 1;
+    const colIdx    = col.charCodeAt(0) - 65;
+    const numColIdx = numCol.charCodeAt(0) - 65;
+    const colCount  = inclName ? 2 : 1;
 
-    // Step 1: get numeric sheetId by sheet name — avoids A1 range parsing issues entirely
-    addLog('vl-log', `🔍 جلب معرّف الورقة...`, 'i');
+    // Step 1: get sheet metadata (numeric sheetId)
+    addLog('vl-log', `🔍 جلب بيانات الورقة...`, 'i');
     const metaR = await fetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}?fields=sheets.properties`,
       { headers: { Authorization: 'Bearer ' + token } }
@@ -854,44 +856,75 @@ async function vlWriteToSheet() {
     const numericSheetId = sheetProps.properties.sheetId;
     addLog('vl-log', `✅ الورقة: "${sheetName}" (id: ${numericSheetId})`, 's');
 
-    // Step 2: write using spreadsheets.batchUpdate with UpdateCellsRequest (GridRange — no name parsing)
+    // Step 2: read the number column to build rowIndex map { sequenceNum → 0-based rowIndex }
+    addLog('vl-log', `🔢 قراءة عمود الأرقام (${numCol}${startRow}:${numCol}${endRow})...`, 'i');
+    const numRangeR = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(numCol + startRow + ':' + numCol + endRow)}`,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    const numRangeD = await numRangeR.json();
+    if (!numRangeR.ok) throw new Error(numRangeD.error?.message || 'خطأ في قراءة عمود الأرقام');
+    const numRows = numRangeD.values || [];
+
+    // Build map: sequenceNumber (as number) → 0-based row index in sheet
+    const numToRow = {};
+    numRows.forEach((row, i) => {
+      const val = parseInt((row[0] || '').toString().trim());
+      if (!isNaN(val)) numToRow[val] = (startRow - 1) + i; // 0-indexed absolute row
+    });
+    addLog('vl-log', `✅ تم قراءة ${Object.keys(numToRow).length} رقم من العمود ${numCol}`, 's');
+
+    // Step 3: build per-row write requests matched by video position → sheet number
+    const requests = [];
+    let matched = 0, skipped = 0;
+
+    vlVideos.forEach((f, i) => {
+      const seqNum = i + 1 + (vlRangeMode === 'range'
+        ? (parseInt(document.getElementById('vl-range-from').value) || 1) - 1
+        : 0);
+      const rowIdx = numToRow[seqNum];
+      if (rowIdx === undefined) { skipped++; return; }
+
+      const link = getLink(f);
+      const cellValues = inclName
+        ? [{ userEnteredValue: { formulaValue: `=HYPERLINK("${link}","▶ فيديو")` } },
+           { userEnteredValue: { stringValue: f.name } }]
+        : [{ userEnteredValue: { formulaValue: `=HYPERLINK("${link}","▶ فيديو")` } }];
+
+      requests.push({
+        updateCells: {
+          range: {
+            sheetId: numericSheetId,
+            startRowIndex: rowIdx,
+            endRowIndex: rowIdx + 1,
+            startColumnIndex: colIdx,
+            endColumnIndex: colIdx + colCount
+          },
+          rows: [{ values: cellValues }],
+          fields: 'userEnteredValue'
+        }
+      });
+      matched++;
+    });
+
+    if (!requests.length) throw new Error(`لم يتم مطابقة أي فيديو — تحقق من عمود الأرقام (${numCol}) وصفوف البداية/النهاية`);
+    addLog('vl-log', `🎯 تم مطابقة ${matched} فيديو${skipped ? ` (${skipped} لم يُطابَق)` : ''}`, 'i');
+
+    // Step 4: send all requests in chunks of 100
     const CHUNK = 100;
     let written = 0;
-    for (let i = 0; i < values.length; i += CHUNK) {
-      const chunk = values.slice(i, i + CHUNK);
-      const rowStart = (startRow - 1) + i; // 0-indexed
-
-      const rows = chunk.map((rowVals, ri) => ({
-        values: rowVals.map((v, ci) => {
-          // First column = link → wrap as HYPERLINK formula to show as clickable button label
-          if (ci === 0) return { userEnteredValue: { formulaValue: `=HYPERLINK("${v}","▶ فيديو")` } };
-          // Other columns (name etc.) stay as plain text
-          return { userEnteredValue: { stringValue: v } };
-        })
-      }));
-
+    for (let i = 0; i < requests.length; i += CHUNK) {
+      const batch = requests.slice(i, i + CHUNK);
       const r = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}:batchUpdate`,
         { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ requests: [{
-            updateCells: {
-              range: {
-                sheetId: numericSheetId,
-                startRowIndex: rowStart,
-                endRowIndex: rowStart + chunk.length,
-                startColumnIndex: colIdx,
-                endColumnIndex: colIdx + colCount
-              },
-              rows,
-              fields: 'userEnteredValue'
-            }
-          }]}) }
+          body: JSON.stringify({ requests: batch }) }
       );
       const d = await r.json();
       if (!r.ok) throw new Error(d.error?.message || `خطأ ${r.status} في Sheets API`);
-      written += chunk.length;
-      document.getElementById('vl-prog-bar').style.width = Math.round(written / values.length * 100) + '%';
-      addLog('vl-log', `  ✅ كُتب ${written}/${values.length}`, 's');
+      written += batch.length;
+      document.getElementById('vl-prog-bar').style.width = Math.round(written / requests.length * 100) + '%';
+      addLog('vl-log', `  ✅ كُتب ${written}/${requests.length}`, 's');
     }
     addLog('vl-log', `🎉 اكتمل! تم كتابة ${vlVideos.length} رابط`, 's');
     addLog('vl-log', `🔗 https://docs.google.com/spreadsheets/d/${sheetId}/edit`, 'i');

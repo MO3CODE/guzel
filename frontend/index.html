@@ -245,18 +245,36 @@
         إذا كان ملف Excel: افتحه في Drive ← الزر الأيمن ← <strong>"فتح بـ Google Sheets"</strong> ← انسخ الـ ID من الرابط الجديد.
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:14px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px">
         <div>
           <div class="label">اسم الورقة (Sheet Name)</div>
           <input type="text" id="vl-sheet-name" value="Sheet1" placeholder="Sheet1"/>
         </div>
         <div>
-          <div class="label">العمود المستهدف</div>
+          <div class="label">عمود الرابط (الكتابة فيه)</div>
           <input type="text" id="vl-col" value="C" placeholder="C" style="text-align:center;font-weight:600"/>
         </div>
-        <div>
-          <div class="label">بداية من الصف</div>
-          <input type="number" id="vl-start-row" value="2" min="1" style="text-align:center"/>
+      </div>
+
+      <div style="margin-top:12px;padding:10px 14px;background:var(--accent-bg);border:1px solid #bfdbfe;border-radius:var(--radius)">
+        <div style="font-size:13px;font-weight:600;color:var(--accent-text);margin-bottom:8px">🔢 عمود الأرقام التسلسلية</div>
+        <div class="label">الكود يقرأ هذا العمود ويطابق رقم الفيديو مع الرقم الموجود في كل صف</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:8px">
+          <div>
+            <div class="label">عمود الأرقام</div>
+            <input type="text" id="vl-num-col" value="A" placeholder="A" style="text-align:center;font-weight:600"/>
+          </div>
+          <div>
+            <div class="label">صف البداية (بعد الهيدر)</div>
+            <input type="number" id="vl-start-row" value="2" min="1" style="text-align:center"/>
+          </div>
+          <div>
+            <div class="label">صف النهاية</div>
+            <input type="number" id="vl-end-row" value="301" min="1" style="text-align:center"/>
+          </div>
+        </div>
+        <div style="margin-top:6px;font-size:12px;color:var(--text3)">
+          مثال: إذا العمود A يحتوي 1، 2، 3... 300 والفيديو رقم 150 سيُكتب في الصف الذي يحتوي الرقم 150
         </div>
       </div>
 
