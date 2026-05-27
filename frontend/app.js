@@ -856,32 +856,45 @@ async function vlWriteToSheet() {
     const numericSheetId = sheetProps.properties.sheetId;
     addLog('vl-log', `✅ الورقة: "${sheetName}" (id: ${numericSheetId})`, 's');
 
-    // Step 2: read the number column to build rowIndex map { sequenceNum → 0-based rowIndex }
-    addLog('vl-log', `🔢 قراءة عمود الأرقام (${numCol}${startRow}:${numCol}${endRow})...`, 'i');
+    // Step 2: read the number column using batchGet (range in query param — no path encoding issues)
+    const safeSheetForRange = sheetName.replace(/'/g, "''");
+    const readRange = `'${safeSheetForRange}'!${numCol}${startRow}:${numCol}${endRow}`;
+    addLog('vl-log', `🔢 قراءة عمود الأرقام: ${numCol}${startRow}→${numCol}${endRow}...`, 'i');
     const numRangeR = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(numCol + startRow + ':' + numCol + endRow)}`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values:batchGet?ranges=${encodeURIComponent(readRange)}&majorDimension=ROWS`,
       { headers: { Authorization: 'Bearer ' + token } }
     );
     const numRangeD = await numRangeR.json();
     if (!numRangeR.ok) throw new Error(numRangeD.error?.message || 'خطأ في قراءة عمود الأرقام');
-    const numRows = numRangeD.values || [];
+    const numRows = numRangeD.valueRanges?.[0]?.values || [];
 
-    // Build map: sequenceNumber (as number) → 0-based row index in sheet
+    // Build map: sequenceNumber → 0-based row index in sheet
     const numToRow = {};
     numRows.forEach((row, i) => {
-      const val = parseInt((row[0] || '').toString().trim());
-      if (!isNaN(val)) numToRow[val] = (startRow - 1) + i; // 0-indexed absolute row
+      const raw = (row[0] ?? '').toString().trim();
+      const val = parseInt(raw);
+      if (!isNaN(val)) numToRow[val] = (startRow - 1) + i;
     });
-    addLog('vl-log', `✅ تم قراءة ${Object.keys(numToRow).length} رقم من العمود ${numCol}`, 's');
+
+    const mappedCount = Object.keys(numToRow).length;
+    if (mappedCount === 0) {
+      // Show first few raw values to help diagnose
+      const sample = numRows.slice(0, 5).map(r => `"${r[0] ?? ''}"`).join(', ');
+      throw new Error(`العمود ${numCol} لا يحتوي على أرقام قابلة للقراءة. أول قيم: [${sample || 'فارغ'}]`);
+    }
+    addLog('vl-log', `✅ تم قراءة ${mappedCount} رقم — من ${Math.min(...Object.keys(numToRow).map(Number))} إلى ${Math.max(...Object.keys(numToRow).map(Number))}`, 's');
 
     // Step 3: build per-row write requests matched by video position → sheet number
     const requests = [];
     let matched = 0, skipped = 0;
 
+    const rangeFrom = vlRangeMode === 'range'
+      ? (parseInt(document.getElementById('vl-range-from').value) || 1)
+      : 1;
+
     vlVideos.forEach((f, i) => {
-      const seqNum = i + 1 + (vlRangeMode === 'range'
-        ? (parseInt(document.getElementById('vl-range-from').value) || 1) - 1
-        : 0);
+      // seqNum = position in full sorted Drive list (1-based)
+      const seqNum = rangeFrom + i;
       const rowIdx = numToRow[seqNum];
       if (rowIdx === undefined) { skipped++; return; }
 
