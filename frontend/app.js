@@ -740,8 +740,8 @@ async function vlFetchVideos() {
       addLog('vl-log', '⚠️ لم يتم العثور على فيديوهات في هذا المجلد', 'e');
       btn.disabled = false; btn.textContent = '🔍 سحب قائمة الفيديوهات'; return;
     }
-    if (document.getElementById('vl-sort-name').checked)
-      files.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+    // Always sort with natural numeric order (matches Drive's display order: 1,2,3...10,11 not 1,10,11,2)
+    files.sort((a, b) => a.name.localeCompare(b.name, 'ar', { numeric: true, sensitivity: 'base' }));
     vlVideos = files;
     addLog('vl-log', `✅ تم العثور على ${files.length} فيديو`, 's');
 
