@@ -813,7 +813,7 @@ async function vlWriteToSheet() {
       const safeSheet = sheetName.replace(/'/g, "\\'");
       const range = `'${safeSheet}'!${col}${r0}:${endCol}${r1}`;
       const r = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(range).replace(/%27/g, "'")}?valueInputOption=USER_ENTERED`,
         { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
           body: JSON.stringify({ range, majorDimension: 'ROWS', values: chunk }) }
       );
