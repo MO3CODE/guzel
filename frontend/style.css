@@ -149,3 +149,6 @@ textarea{resize:vertical;min-height:120px}
 /* ── Video Links Tab ── */
 .vl-sel-btn-wrap{margin-bottom:4px}
 #vl-folder-browser .folder-item:hover .fi-name{color:var(--accent)}
+.vl-range-tab{flex:1;padding:9px 14px;border:none;background:none;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;color:var(--text2);transition:all .15s}
+.vl-range-tab.active{background:var(--accent);color:#fff}
+.vl-range-tab:not(.active):hover{background:var(--accent-bg);color:var(--accent)}

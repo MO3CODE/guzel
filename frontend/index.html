@@ -271,8 +271,32 @@
     </div>
 
     <div class="card">
-      <div class="card-title">⚙️ خيارات إضافية</div>
-      <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card-title">🎯 نطاق الفيديوهات</div>
+
+      <div style="display:flex;gap:0;margin-bottom:14px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+        <button class="vl-range-tab active" id="vl-rt-all" onclick="vlSetRangeMode('all')">📂 كل الفيديوهات</button>
+        <button class="vl-range-tab" id="vl-rt-range" onclick="vlSetRangeMode('range')">🔢 نطاق محدد</button>
+      </div>
+
+      <div id="vl-range-inputs" style="display:none">
+        <div class="label" style="margin-bottom:8px">اختر من رقم الفيديو إلى رقم الفيديو (حسب ترتيبها في المجلد)</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="flex:1">
+            <div class="label">من رقم</div>
+            <input type="number" id="vl-range-from" value="1" min="1" style="text-align:center;font-size:16px;font-weight:600"/>
+          </div>
+          <div style="font-size:22px;color:var(--text3);margin-top:18px">→</div>
+          <div style="flex:1">
+            <div class="label">إلى رقم</div>
+            <input type="number" id="vl-range-to" value="100" min="1" style="text-align:center;font-size:16px;font-weight:600"/>
+          </div>
+        </div>
+        <div id="vl-range-hint" style="margin-top:8px;font-size:12px;color:var(--accent);background:var(--accent-bg);padding:6px 10px;border-radius:var(--radius)">
+          سيتم سحب الفيديوهات من رقم <strong id="vl-rh-from">1</strong> إلى <strong id="vl-rh-to">100</strong> فقط
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px">
           <input type="checkbox" id="vl-include-name" checked style="width:16px;height:16px">
           <span>كتابة اسم الفيديو في العمود المجاور (يميناً)</span>

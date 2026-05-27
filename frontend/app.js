@@ -604,7 +604,29 @@ async function mergePDFs() {
 // ═══════════════════════════════════════════
 // VIDEO LINKS → GOOGLE SHEET (Tab 5)
 // ═══════════════════════════════════════════
-let vlStack = [], vlSelectedFolder = null, vlVideos = [];
+let vlStack = [], vlSelectedFolder = null, vlVideos = [], vlRangeMode = 'all';
+
+function vlSetRangeMode(mode) {
+  vlRangeMode = mode;
+  document.getElementById('vl-rt-all').classList.toggle('active', mode === 'all');
+  document.getElementById('vl-rt-range').classList.toggle('active', mode === 'range');
+  document.getElementById('vl-range-inputs').style.display = mode === 'range' ? 'block' : 'none';
+}
+
+function vlUpdateRangeHint() {
+  const from = document.getElementById('vl-range-from')?.value || 1;
+  const to   = document.getElementById('vl-range-to')?.value || 100;
+  const hf = document.getElementById('vl-rh-from');
+  const ht = document.getElementById('vl-rh-to');
+  if (hf) hf.textContent = from;
+  if (ht) ht.textContent = to;
+}
+
+// Live hint update
+setTimeout(() => {
+  document.getElementById('vl-range-from')?.addEventListener('input', vlUpdateRangeHint);
+  document.getElementById('vl-range-to')?.addEventListener('input', vlUpdateRangeHint);
+}, 500);
 
 async function vlLoadRoot() {
   if (!token) { alert('يرجى الاتصال بـ Drive أولاً'); return; }
@@ -742,8 +764,17 @@ async function vlFetchVideos() {
     }
     // Always sort with natural numeric order (matches Drive's display order: 1,2,3...10,11 not 1,10,11,2)
     files.sort((a, b) => a.name.localeCompare(b.name, 'ar', { numeric: true, sensitivity: 'base' }));
-    vlVideos = files;
-    addLog('vl-log', `✅ تم العثور على ${files.length} فيديو`, 's');
+    addLog('vl-log', `✅ تم العثور على ${files.length} فيديو إجمالاً`, 's');
+
+    // Apply range filter
+    let filtered = files;
+    if (vlRangeMode === 'range') {
+      const fromIdx = Math.max(1, parseInt(document.getElementById('vl-range-from').value) || 1);
+      const toIdx   = Math.max(fromIdx, parseInt(document.getElementById('vl-range-to').value) || fromIdx);
+      filtered = files.slice(fromIdx - 1, toIdx); // convert to 0-based
+      addLog('vl-log', `🎯 النطاق المختار: ${fromIdx} → ${toIdx} (${filtered.length} فيديو)`, 'i');
+    }
+    vlVideos = filtered;
 
     const linkType = document.getElementById('vl-link-type').value;
     function getLink(f) {
