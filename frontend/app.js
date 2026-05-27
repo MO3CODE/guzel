@@ -804,19 +804,52 @@ async function vlWriteToSheet() {
   addLog('vl-log', `📝 بدء الكتابة في الشيت...`, 'i');
   try {
     const values = vlVideos.map(f => inclName ? [getLink(f), f.name] : [getLink(f)]);
-    const endCol = inclName ? String.fromCharCode(col.charCodeAt(0)+1) : col;
-    const safeSheet = sheetName.replace(/'/g, "\\'");
+    const colIdx = col.charCodeAt(0) - 65; // A=0, B=1, C=2 ...
+    const colCount = inclName ? 2 : 1;
+
+    // Step 1: get numeric sheetId by sheet name — avoids A1 range parsing issues entirely
+    addLog('vl-log', `🔍 جلب معرّف الورقة...`, 'i');
+    const metaR = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}?fields=sheets.properties`,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    const metaD = await metaR.json();
+    if (!metaR.ok) throw new Error(metaD.error?.message || 'خطأ في جلب بيانات الشيت');
+    const sheetProps = metaD.sheets?.find(s => s.properties.title === sheetName);
+    if (!sheetProps) {
+      const available = metaD.sheets?.map(s => `"${s.properties.title}"`).join(', ') || '—';
+      throw new Error(`لم يتم العثور على ورقة باسم "${sheetName}". الأوراق المتاحة: ${available}`);
+    }
+    const numericSheetId = sheetProps.properties.sheetId;
+    addLog('vl-log', `✅ الورقة: "${sheetName}" (id: ${numericSheetId})`, 's');
+
+    // Step 2: write using spreadsheets.batchUpdate with UpdateCellsRequest (GridRange — no name parsing)
     const CHUNK = 100;
     let written = 0;
     for (let i = 0; i < values.length; i += CHUNK) {
       const chunk = values.slice(i, i + CHUNK);
-      const r0 = startRow + i, r1 = r0 + chunk.length - 1;
-      const range = `'${safeSheet}'!${col}${r0}:${endCol}${r1}`;
-      // Use batchUpdate so range stays in JSON body — avoids URL-encoding issues with sheet names
+      const rowStart = (startRow - 1) + i; // 0-indexed
+
+      const rows = chunk.map(rowVals => ({
+        values: rowVals.map(v => ({ userEnteredValue: { stringValue: v } }))
+      }));
+
       const r = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values:batchUpdate`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}:batchUpdate`,
         { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data: [{ range, majorDimension: 'ROWS', values: chunk }] }) }
+          body: JSON.stringify({ requests: [{
+            updateCells: {
+              range: {
+                sheetId: numericSheetId,
+                startRowIndex: rowStart,
+                endRowIndex: rowStart + chunk.length,
+                startColumnIndex: colIdx,
+                endColumnIndex: colIdx + colCount
+              },
+              rows,
+              fields: 'userEnteredValue'
+            }
+          }]}) }
       );
       const d = await r.json();
       if (!r.ok) throw new Error(d.error?.message || `خطأ ${r.status} في Sheets API`);
