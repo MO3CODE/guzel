@@ -42,7 +42,7 @@ let _nodeId = 0;
 
 // ─── Tabs ────────────────────────────────────
 function switchTab(n) {
-  ['folders', 'browse', 'pdf-extract', 'pdf-merge'].forEach((t, i) => {
+  ['folders', 'browse', 'pdf-extract', 'pdf-merge', 'video-links'].forEach((t, i) => {
     document.querySelectorAll('.tab')[i].classList.toggle('active', t === n);
     document.getElementById('tab-' + t).classList.toggle('active', t === n);
   });
@@ -599,6 +599,237 @@ async function mergePDFs() {
   }
   btn.disabled = false;
   btn.textContent = '⬇ دمج وتنزيل على الجهاز';
+}
+
+// ═══════════════════════════════════════════
+// VIDEO LINKS → GOOGLE SHEET (Tab 5)
+// ═══════════════════════════════════════════
+let vlStack = [], vlSelectedFolder = null, vlVideos = [];
+
+async function vlLoadRoot() {
+  if (!token) { alert('يرجى الاتصال بـ Drive أولاً'); return; }
+  vlStack = [];
+  vlSelectedFolder = null;
+  document.getElementById('vl-selected-folder').style.display = 'none';
+  document.getElementById('vl-fetch-btn').disabled = true;
+  await vlLoadBrowser(null);
+}
+
+async function vlLoadBrowser(folderId) {
+  const browser = document.getElementById('vl-folder-browser');
+  browser.innerHTML = '<div class="empty-state"><span class="spin"></span> جاري التحميل...</div>';
+  vlUpdateBC();
+  try {
+    const q = folderId
+      ? `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+      : `mimeType='application/vnd.google-apps.folder' and trashed=false and 'root' in parents`;
+    const r = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&orderBy=name&pageSize=200`,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error?.message || 'خطأ');
+    const folders = d.files || [];
+    const curName = vlStack.length ? vlStack[vlStack.length - 1].name : 'Drive';
+    let html = '';
+    if (folderId) {
+      html += `<div class="vl-sel-btn-wrap">
+        <button class="btn btn-primary" style="width:100%;margin-bottom:10px"
+          onclick="vlSelectFolder('${folderId}','${escJs(curName)}')">
+          ✅ اختيار هذا المجلد: "${escAttr(curName)}"
+        </button>
+      </div>`;
+    }
+    if (!folders.length) {
+      html += '<div class="empty-state" style="margin-top:0">لا توجد مجلدات فرعية هنا</div>';
+    } else {
+      html += `<div class="folder-grid">${folders.map(f => `
+        <div class="folder-item" onclick="vlOpenF('${f.id}','${escJs(f.name)}')">
+          <span style="font-size:20px">📁</span>
+          <div style="flex:1;min-width:0">
+            <div class="fi-name">${escAttr(f.name)}</div>
+            <div style="font-size:11px;color:var(--accent);margin-top:1px">↵ دخول</div>
+          </div>
+        </div>`).join('')}</div>`;
+    }
+    browser.innerHTML = html;
+    document.getElementById('vl-up-btn').disabled = vlStack.length === 0;
+  } catch (e) {
+    browser.innerHTML = `<div class="empty-state">❌ ${e.message}</div>`;
+  }
+}
+
+function vlSelectFolder(id, name) {
+  vlSelectedFolder = { id, name };
+  document.getElementById('vl-selected-folder').style.display = 'block';
+  document.getElementById('vl-sel-name').textContent = name;
+  document.getElementById('vl-fetch-btn').disabled = false;
+  addLog('vl-log', `✅ تم اختيار المجلد: ${name}`, 's');
+  vlVideos = [];
+  document.getElementById('vl-preview').style.display = 'none';
+  document.getElementById('vl-write-card').style.display = 'none';
+}
+
+function vlOpenF(id, name) { vlStack.push({ id, name }); vlLoadBrowser(id); }
+
+function vlGoUp() {
+  if (!vlStack.length) return;
+  vlStack.pop();
+  const p = vlStack[vlStack.length - 1];
+  vlLoadBrowser(p ? p.id : null);
+}
+
+function vlUpdateBC() {
+  let h = `<span class="bc-item" onclick="vlStack=[];vlLoadBrowser(null)">Drive</span>`;
+  vlStack.forEach((b, i) => {
+    h += `<span style="color:var(--text3)"> › </span>`;
+    if (i < vlStack.length - 1)
+      h += `<span class="bc-item" onclick="vlStack=vlStack.slice(0,${i+1});vlLoadBrowser('${b.id}')">${escAttr(b.name)}</span>`;
+    else
+      h += `<span class="bc-cur">${escAttr(b.name)}</span>`;
+  });
+  document.getElementById('vl-breadcrumb').innerHTML = h;
+}
+
+const VIDEO_MIMES = [
+  'video/mp4','video/x-msvideo','video/quicktime','video/x-matroska',
+  'video/webm','video/x-ms-wmv','video/mpeg','video/3gpp',
+  'application/vnd.google-apps.video'
+];
+
+async function vlListVideosInFolder(folderId) {
+  let allFiles = [], pageToken = null;
+  const mimeQ = VIDEO_MIMES.map(m => `mimeType='${m}'`).join(' or ');
+  const baseQ = `'${folderId}' in parents and (${mimeQ}) and trashed=false`;
+  do {
+    let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(baseQ)}&fields=nextPageToken,files(id,name,mimeType,webViewLink,webContentLink)&orderBy=name&pageSize=300`;
+    if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error?.message || 'خطأ في Drive API');
+    allFiles = allFiles.concat(d.files || []);
+    pageToken = d.nextPageToken || null;
+  } while (pageToken);
+  return allFiles;
+}
+
+async function vlFetchVideos() {
+  if (!vlSelectedFolder) { alert('اختر مجلداً أولاً'); return; }
+  if (!token) { alert('يرجى الاتصال بـ Drive أولاً'); return; }
+  const btn = document.getElementById('vl-fetch-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> جاري السحب...';
+  document.getElementById('vl-preview').style.display = 'none';
+  document.getElementById('vl-write-card').style.display = 'none';
+  addLog('vl-log', `🔍 سحب الفيديوهات من: ${vlSelectedFolder.name}`, 'i');
+  try {
+    let files = await vlListVideosInFolder(vlSelectedFolder.id);
+    if (document.getElementById('vl-include-subfolders').checked) {
+      const subsR = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`'${vlSelectedFolder.id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`)}&fields=files(id,name)&pageSize=200`,
+        { headers: { Authorization: 'Bearer ' + token } }
+      );
+      const subsD = await subsR.json();
+      for (const sub of (subsD.files || [])) {
+        addLog('vl-log', `  📁 فحص: ${sub.name}`, 'i');
+        const subFiles = await vlListVideosInFolder(sub.id);
+        files = files.concat(subFiles);
+      }
+    }
+    if (!files.length) {
+      addLog('vl-log', '⚠️ لم يتم العثور على فيديوهات في هذا المجلد', 'e');
+      btn.disabled = false; btn.textContent = '🔍 سحب قائمة الفيديوهات'; return;
+    }
+    if (document.getElementById('vl-sort-name').checked)
+      files.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+    vlVideos = files;
+    addLog('vl-log', `✅ تم العثور على ${files.length} فيديو`, 's');
+
+    const linkType = document.getElementById('vl-link-type').value;
+    function getLink(f) {
+      if (linkType === 'webContentLink') return f.webContentLink || `https://drive.google.com/uc?export=download&id=${f.id}`;
+      if (linkType === 'id_embed') return `https://drive.google.com/file/d/${f.id}/preview`;
+      return f.webViewLink || `https://drive.google.com/file/d/${f.id}/view`;
+    }
+
+    const col = (document.getElementById('vl-col').value || 'C').toUpperCase();
+    const startRow = parseInt(document.getElementById('vl-start-row').value) || 2;
+    const inclName = document.getElementById('vl-include-name').checked;
+    const sheetName = document.getElementById('vl-sheet-name').value || 'Sheet1';
+    const maxP = Math.min(files.length, 10);
+    let tbl = `<table class="data-table"><thead><tr><th>#</th><th>اسم الفيديو</th><th>الرابط</th><th>الخلية</th></tr></thead><tbody>`;
+    for (let i = 0; i < maxP; i++) {
+      const f = files[i];
+      tbl += `<tr><td>${i+1}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escAttr(f.name)}</td>
+        <td><a href="${escAttr(getLink(f))}" target="_blank" style="font-size:11px;color:var(--accent)">🔗 رابط</a></td>
+        <td style="font-family:var(--mono);font-size:12px;color:var(--text3)">${sheetName}!${col}${startRow+i}</td></tr>`;
+    }
+    if (files.length > maxP) tbl += `<tr><td colspan="4" style="text-align:center;color:var(--text3);font-size:12px">... و ${files.length-maxP} فيديو آخر</td></tr>`;
+    tbl += '</tbody></table>';
+    document.getElementById('vl-preview-badge').innerHTML = `<span class="badge badge-success">✅ ${files.length} فيديو</span>`;
+    document.getElementById('vl-preview-table').innerHTML = tbl;
+    document.getElementById('vl-preview').style.display = 'block';
+
+    const endCol = inclName ? String.fromCharCode(col.charCodeAt(0)+1) : col;
+    const endRow = startRow + files.length - 1;
+    document.getElementById('vl-write-summary').innerHTML =
+      `سيتم كتابة <strong>${files.length} رابط</strong> في <strong>${col}${startRow}:${col}${endRow}</strong>` +
+      (inclName ? ` + أسماء في <strong>${endCol}${startRow}:${endCol}${endRow}</strong>` : '') +
+      ` ← ورقة <strong>"${escAttr(sheetName)}"</strong>`;
+    document.getElementById('vl-write-card').style.display = 'block';
+  } catch (e) {
+    addLog('vl-log', `❌ ${e.message}`, 'e');
+  }
+  btn.disabled = false; btn.textContent = '🔍 سحب قائمة الفيديوهات';
+}
+
+async function vlWriteToSheet() {
+  if (!vlVideos.length) return;
+  const sheetId = document.getElementById('vl-sheet-id').value.trim();
+  if (!sheetId) { alert('أدخل معرّف الشيت (Sheet ID)'); return; }
+  const sheetName = document.getElementById('vl-sheet-name').value || 'Sheet1';
+  const col = (document.getElementById('vl-col').value || 'C').toUpperCase();
+  const startRow = parseInt(document.getElementById('vl-start-row').value) || 2;
+  const inclName = document.getElementById('vl-include-name').checked;
+  const linkType = document.getElementById('vl-link-type').value;
+  function getLink(f) {
+    if (linkType === 'webContentLink') return f.webContentLink || `https://drive.google.com/uc?export=download&id=${f.id}`;
+    if (linkType === 'id_embed') return `https://drive.google.com/file/d/${f.id}/preview`;
+    return f.webViewLink || `https://drive.google.com/file/d/${f.id}/view`;
+  }
+  const btn = document.getElementById('vl-write-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> جاري الكتابة...';
+  document.getElementById('vl-prog-wrap').style.display = 'block';
+  document.getElementById('vl-prog-bar').style.width = '0%';
+  addLog('vl-log', `📝 بدء الكتابة في الشيت...`, 'i');
+  try {
+    const values = vlVideos.map(f => inclName ? [getLink(f), f.name] : [getLink(f)]);
+    const endCol = inclName ? String.fromCharCode(col.charCodeAt(0)+1) : col;
+    const CHUNK = 100;
+    let written = 0;
+    for (let i = 0; i < values.length; i += CHUNK) {
+      const chunk = values.slice(i, i + CHUNK);
+      const r0 = startRow + i, r1 = r0 + chunk.length - 1;
+      const range = `${sheetName}!${col}${r0}:${endCol}${r1}`;
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
+        { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ range, majorDimension: 'ROWS', values: chunk }) }
+      );
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error?.message || `خطأ ${r.status} في Sheets API`);
+      written += chunk.length;
+      document.getElementById('vl-prog-bar').style.width = Math.round(written / values.length * 100) + '%';
+      addLog('vl-log', `  ✅ كُتب ${written}/${values.length}`, 's');
+    }
+    addLog('vl-log', `🎉 اكتمل! تم كتابة ${vlVideos.length} رابط`, 's');
+    addLog('vl-log', `🔗 https://docs.google.com/spreadsheets/d/${sheetId}/edit`, 'i');
+  } catch (e) {
+    addLog('vl-log', `❌ ${e.message}`, 'e');
+    if (e.message.includes('403'))
+      addLog('vl-log', '⚠️ أضف scope: https://www.googleapis.com/auth/spreadsheets للتوكن', 'e');
+  }
+  btn.disabled = false; btn.textContent = '✍️ كتابة الروابط في الشيت الآن';
 }
 
 // ═══════════════════════════════════════════

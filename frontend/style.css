@@ -145,3 +145,7 @@ textarea{resize:vertical;min-height:120px}
 .server-banner{font-size:12px;padding:6px 12px;border-radius:var(--radius);display:inline-flex;align-items:center;gap:6px}
 .server-banner.ok{background:var(--success-bg);color:var(--success)}
 .server-banner.err{background:var(--danger-bg);color:var(--danger)}
+
+/* ── Video Links Tab ── */
+.vl-sel-btn-wrap{margin-bottom:4px}
+#vl-folder-browser .folder-item:hover .fi-name{color:var(--accent)}

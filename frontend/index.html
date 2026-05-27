@@ -35,13 +35,20 @@
       <input type="password" id="token-inp" placeholder="أدخل Access Token من Google OAuth..."/>
       <button class="btn btn-primary" onclick="verifyToken()">اتصال</button>
     </div>
+    <div class="token-hint">
+      احصل على التوكن من <a href="https://developers.google.com/oauthplayground" target="_blank">OAuth Playground</a>
+      ← Drive API v3 + Sheets API v4 ← scopes:
+      <code>https://www.googleapis.com/auth/drive</code>
+      <code>https://www.googleapis.com/auth/spreadsheets</code>
+    </div>
   </div>
-  
+
   <div class="tabs">
     <button class="tab active" onclick="switchTab('folders')">📁 إنشاء المجلدات</button>
     <button class="tab" onclick="switchTab('browse')">🔍 تصفح وإضافة</button>
     <button class="tab" onclick="switchTab('pdf-extract')">📄 استخراج PDF</button>
     <button class="tab" onclick="switchTab('pdf-merge')">🗂 دمج PDF</button>
+    <button class="tab" onclick="switchTab('video-links')">🎬 روابط الفيديو</button>
   </div>
 
   <!-- ══ TAB 1: Create Folders ══ -->
@@ -205,6 +212,101 @@
     </div>
 
     <div class="log" id="merge-log">انتظار ملفات PDF...</div>
+
+  </div>
+
+  <!-- ══ TAB 5: Video Links → Google Sheet ══ -->
+  <div id="tab-video-links" class="panel">
+
+    <div class="card">
+      <div class="card-title">📂 مجلد الفيديوهات في Drive</div>
+      <div class="label">تصفح واختر المجلد الذي يحتوي على الفيديوهات</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;margin-top:8px">
+        <button class="btn btn-primary" onclick="vlLoadRoot()">تحميل مجلداتي</button>
+        <button class="btn" onclick="vlGoUp()" id="vl-up-btn" disabled>↑ رجوع</button>
+      </div>
+      <div class="breadcrumb" id="vl-breadcrumb"><span class="bc-cur">Drive</span></div>
+      <div id="vl-folder-browser"><div class="empty-state">اضغط "تحميل مجلداتي" لتصفح المجلدات</div></div>
+      <div id="vl-selected-folder" style="display:none;margin-top:10px;padding:10px;background:var(--success-bg);border:1px solid #86efac;border-radius:var(--radius)">
+        <span style="color:var(--success);font-weight:600">✅ المجلد المختار: </span>
+        <span id="vl-sel-name" style="color:var(--success)"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📊 إعدادات Google Sheet</div>
+      <div class="label">معرّف الشيت (Sheet ID) — من رابط الشيت</div>
+      <input type="text" id="vl-sheet-id" placeholder="مثال: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" style="font-family:var(--mono);font-size:12px"/>
+      <div style="font-size:12px;color:var(--text3);margin-top:4px">
+        رابط الشيت: docs.google.com/spreadsheets/d/<strong>SHEET_ID</strong>/edit
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:14px">
+        <div>
+          <div class="label">اسم الورقة (Sheet Name)</div>
+          <input type="text" id="vl-sheet-name" value="Sheet1" placeholder="Sheet1"/>
+        </div>
+        <div>
+          <div class="label">العمود المستهدف</div>
+          <input type="text" id="vl-col" value="C" placeholder="C" style="text-align:center;font-weight:600"/>
+        </div>
+        <div>
+          <div class="label">بداية من الصف</div>
+          <input type="number" id="vl-start-row" value="2" min="1" style="text-align:center"/>
+        </div>
+      </div>
+
+      <div style="margin-top:14px">
+        <div class="label">نوع الرابط</div>
+        <select id="vl-link-type">
+          <option value="webViewLink">رابط المشاهدة (webViewLink) — يفتح في المتصفح</option>
+          <option value="webContentLink">رابط التنزيل المباشر (webContentLink)</option>
+          <option value="id_embed">رابط تضمين (embed) — للعرض في صفحات الويب</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">⚙️ خيارات إضافية</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px">
+          <input type="checkbox" id="vl-include-name" checked style="width:16px;height:16px">
+          <span>كتابة اسم الفيديو في العمود المجاور (يميناً)</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px">
+          <input type="checkbox" id="vl-sort-name" checked style="width:16px;height:16px">
+          <span>ترتيب الفيديوهات أبجدياً حسب الاسم</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px">
+          <input type="checkbox" id="vl-include-subfolders" style="width:16px;height:16px">
+          <span>تضمين الفيديوهات من المجلدات الفرعية أيضاً</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔍 معاينة الفيديوهات</div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="vl-fetch-btn" onclick="vlFetchVideos()" disabled>🔍 سحب قائمة الفيديوهات</button>
+      </div>
+      <div id="vl-preview" style="margin-top:12px;display:none">
+        <div id="vl-preview-badge" style="margin-bottom:8px"></div>
+        <div id="vl-preview-table"></div>
+      </div>
+    </div>
+
+    <div class="card" id="vl-write-card" style="display:none">
+      <div class="card-title">📝 كتابة الروابط في الشيت</div>
+      <div id="vl-write-summary" style="margin-bottom:12px;padding:10px;background:var(--accent-bg);border-radius:var(--radius);font-size:13px;color:var(--accent-text)"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="vl-write-btn" onclick="vlWriteToSheet()">✍️ كتابة الروابط في الشيت الآن</button>
+      </div>
+      <div class="progress-wrap" id="vl-prog-wrap" style="display:none">
+        <div class="progress-bar" id="vl-prog-bar"></div>
+      </div>
+    </div>
+
+    <div class="log" id="vl-log">انتظار تحديد المجلد...</div>
 
   </div>
 
