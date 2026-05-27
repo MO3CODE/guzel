@@ -810,7 +810,8 @@ async function vlWriteToSheet() {
     for (let i = 0; i < values.length; i += CHUNK) {
       const chunk = values.slice(i, i + CHUNK);
       const r0 = startRow + i, r1 = r0 + chunk.length - 1;
-      const range = `${sheetName}!${col}${r0}:${endCol}${r1}`;
+      const safeSheet = sheetName.replace(/'/g, "\\'");
+      const range = `'${safeSheet}'!${col}${r0}:${endCol}${r1}`;
       const r = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
         { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
