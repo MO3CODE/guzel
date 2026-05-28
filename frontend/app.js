@@ -4,6 +4,82 @@
 const API_BASE = '/api';
 
 // ═══════════════════════════════════════════
+// PIN SCREEN
+// ═══════════════════════════════════════════
+let _pin = '';
+const PIN_MAX = 6;
+const SESSION_KEY = 'session_token';
+
+(function checkSession() {
+  const saved = sessionStorage.getItem(SESSION_KEY);
+  if (saved) {
+    hidePinScreen();
+  }
+  // keyboard support
+  document.addEventListener('keydown', e => {
+    const screen = document.getElementById('pin-screen');
+    if (screen.classList.contains('hide')) return;
+    if (e.key >= '0' && e.key <= '9') pinKey(e.key);
+    else if (e.key === 'Backspace') pinDel();
+  });
+})();
+
+function hidePinScreen() {
+  const s = document.getElementById('pin-screen');
+  s.classList.add('hide');
+  setTimeout(() => s.style.display = 'none', 300);
+}
+
+function pinKey(k) {
+  if (_pin.length >= PIN_MAX) return;
+  _pin += k;
+  renderDots();
+  if (_pin.length === PIN_MAX) submitPin();
+}
+
+function pinDel() {
+  if (!_pin.length) return;
+  _pin = _pin.slice(0, -1);
+  renderDots(false);
+}
+
+function renderDots(filled = true) {
+  for (let i = 0; i < PIN_MAX; i++) {
+    const d = document.getElementById('pd' + i);
+    d.classList.toggle('filled', i < _pin.length);
+    d.classList.remove('error');
+  }
+}
+
+async function submitPin() {
+  document.getElementById('pin-error').textContent = '';
+  try {
+    const r = await fetch(`${API_BASE}/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: _pin })
+    });
+    const d = await r.json();
+    if (r.ok && d.token) {
+      sessionStorage.setItem(SESSION_KEY, d.token);
+      hidePinScreen();
+    } else {
+      pinShakeError(d.error || 'رمز غير صحيح');
+    }
+  } catch {
+    pinShakeError('تعذّر الاتصال بالخادم');
+  }
+}
+
+function pinShakeError(msg) {
+  document.getElementById('pin-error').textContent = msg;
+  for (let i = 0; i < PIN_MAX; i++)
+    document.getElementById('pd' + i).classList.add('error');
+  _pin = '';
+  setTimeout(renderDots, 600);
+}
+
+// ═══════════════════════════════════════════
 // State
 // ═══════════════════════════════════════════
 let token = localStorage.getItem('drive_token') || '';
