@@ -913,10 +913,18 @@ async function vlWriteToSheet() {
       if (rowIdx === undefined) { skipped++; return; }
 
       const link = getLink(f);
+
+      // Use native hyperlink (textFormatRuns) instead of =HYPERLINK() formula
+      // — avoids locale/quote issues, works in all sheets
+      const linkCell = {
+        userEnteredValue: { stringValue: '▶ فيديو' },
+        textFormatRuns: [
+          { startIndex: 0, format: { link: { uri: link }, foregroundColorStyle: { rgbColor: { red: 0.11, green: 0.31, blue: 0.85 } }, underline: true } }
+        ]
+      };
       const cellValues = inclName
-        ? [{ userEnteredValue: { formulaValue: `=HYPERLINK("${link}","▶ فيديو")` } },
-           { userEnteredValue: { stringValue: f.name } }]
-        : [{ userEnteredValue: { formulaValue: `=HYPERLINK("${link}","▶ فيديو")` } }];
+        ? [linkCell, { userEnteredValue: { stringValue: f.name } }]
+        : [linkCell];
 
       requests.push({
         updateCells: {
@@ -928,7 +936,7 @@ async function vlWriteToSheet() {
             endColumnIndex: colIdx + colCount
           },
           rows: [{ values: cellValues }],
-          fields: 'userEnteredValue'
+          fields: 'userEnteredValue,textFormatRuns'
         }
       });
       matched++;
