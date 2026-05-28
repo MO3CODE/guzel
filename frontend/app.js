@@ -841,31 +841,29 @@ async function vlWriteToSheet() {
     const colCount  = inclName ? 2 : 1;
 
     // Step 1: get sheet metadata (numeric sheetId)
-    addLog('vl-log', `🔍 جلب بيانات الورقة...`, 'i');
+    addLog('vl-log', `🔍 [1/3] جلب بيانات الشيت — ID: ${sheetId.slice(0,12)}...`, 'i');
     const metaR = await fetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}?fields=sheets.properties`,
       { headers: { Authorization: 'Bearer ' + token } }
     );
     const metaD = await metaR.json();
-    if (!metaR.ok) throw new Error(metaD.error?.message || 'خطأ في جلب بيانات الشيت');
+    if (!metaR.ok) throw new Error(`[خطأ ${metaR.status} - الخطوة 1] ${metaD.error?.message || 'فشل جلب بيانات الشيت'}`);
     const sheetProps = metaD.sheets?.find(s => s.properties.title === sheetName);
     if (!sheetProps) {
       const available = metaD.sheets?.map(s => `"${s.properties.title}"`).join(', ') || '—';
-      throw new Error(`لم يتم العثور على ورقة باسم "${sheetName}". الأوراق المتاحة: ${available}`);
+      throw new Error(`[الخطوة 1] لم يتم العثور على ورقة باسم "${sheetName}". الأوراق المتاحة: ${available}`);
     }
     const numericSheetId = sheetProps.properties.sheetId;
-    addLog('vl-log', `✅ الورقة: "${sheetName}" (id: ${numericSheetId})`, 's');
+    addLog('vl-log', `✅ الورقة: "${sheetName}" (sheetId: ${numericSheetId})`, 's');
 
-    // Step 2: read the number column using batchGet (range in query param — no path encoding issues)
+    // Step 2: read number column via batchGet — range in query param (no path-encoding issues)
     const safeSheetForRange = sheetName.replace(/'/g, "''");
     const readRange = `'${safeSheetForRange}'!${numCol}${startRow}:${numCol}${endRow}`;
-    addLog('vl-log', `🔢 قراءة عمود الأرقام: ${numCol}${startRow}→${numCol}${endRow}...`, 'i');
-    const numRangeR = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values:batchGet?ranges=${encodeURIComponent(readRange)}&majorDimension=ROWS`,
-      { headers: { Authorization: 'Bearer ' + token } }
-    );
+    addLog('vl-log', `🔢 [2/3] قراءة عمود الأرقام — النطاق: ${numCol}${startRow}:${numCol}${endRow}`, 'i');
+    const batchGetUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values:batchGet?ranges=${encodeURIComponent(readRange)}&majorDimension=ROWS`;
+    const numRangeR = await fetch(batchGetUrl, { headers: { Authorization: 'Bearer ' + token } });
     const numRangeD = await numRangeR.json();
-    if (!numRangeR.ok) throw new Error(numRangeD.error?.message || 'خطأ في قراءة عمود الأرقام');
+    if (!numRangeR.ok) throw new Error(`[خطأ ${numRangeR.status} - الخطوة 2] ${numRangeD.error?.message || 'فشل قراءة عمود الأرقام'}`);
     const numRows = numRangeD.valueRanges?.[0]?.values || [];
 
     // Build map: sequenceNumber → 0-based row index in sheet
