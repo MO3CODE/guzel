@@ -902,15 +902,21 @@ async function vlWriteToSheet() {
     const requests = [];
     let matched = 0, skipped = 0;
 
-    const rangeFrom = vlRangeMode === 'range'
-      ? (parseInt(document.getElementById('vl-range-from').value) || 1)
-      : 1;
-
     vlVideos.forEach((f, i) => {
-      // seqNum = position in full sorted Drive list (1-based)
-      const seqNum = rangeFrom + i;
+      // Extract leading number from filename: "150 - name.mp4" → 150, "001_name.mp4" → 1
+      const numMatch = f.name.match(/^(\d+)/);
+      const seqNum = numMatch ? parseInt(numMatch[1]) : null;
+
+      if (seqNum === null) {
+        addLog('vl-log', `⚠️ لم يُعثر على رقم في اسم الفيديو: "${f.name}" — تم تخطيه`, 'e');
+        skipped++; return;
+      }
+
       const rowIdx = numToRow[seqNum];
-      if (rowIdx === undefined) { skipped++; return; }
+      if (rowIdx === undefined) {
+        addLog('vl-log', `⚠️ الرقم ${seqNum} غير موجود في الشيت — تم تخطي: "${f.name}"`, 'e');
+        skipped++; return;
+      }
 
       const link = getLink(f);
 
