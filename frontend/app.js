@@ -613,6 +613,17 @@ function vlSetRangeMode(mode) {
   document.getElementById('vl-range-inputs').style.display = mode === 'range' ? 'block' : 'none';
 }
 
+function vlParseSheetId(input) {
+  const m = input.value.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  const el = document.getElementById('vl-sheet-id-parsed');
+  if (m) {
+    el.style.display = 'block';
+    el.textContent = '✅ Sheet ID: ' + m[1];
+  } else {
+    el.style.display = 'none';
+  }
+}
+
 function vlUpdateRangeHint() {
   const from = document.getElementById('vl-range-from')?.value || 1;
   const to   = document.getElementById('vl-range-to')?.value || 100;
@@ -816,8 +827,13 @@ async function vlFetchVideos() {
 
 async function vlWriteToSheet() {
   if (!vlVideos.length) return;
-  const sheetId = document.getElementById('vl-sheet-id').value.trim();
-  if (!sheetId) { alert('أدخل معرّف الشيت (Sheet ID)'); return; }
+  const rawInput = document.getElementById('vl-sheet-id').value.trim();
+  // Extract ID from full URL if user pasted it: /spreadsheets/d/{ID}/...
+  const urlMatch = rawInput.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  const sheetId = urlMatch ? urlMatch[1] : rawInput;
+  if (!sheetId) { alert('أدخل معرّف الشيت (Sheet ID) أو الرابط الكامل'); return; }
+  // Show extracted ID in log for confirmation
+  if (urlMatch) addLog('vl-log', `🔗 تم استخراج Sheet ID: ${sheetId}`, 'i');
   const sheetName = document.getElementById('vl-sheet-name').value || 'Sheet1';
   const col    = (document.getElementById('vl-col').value    || 'C').toUpperCase();
   const numCol = (document.getElementById('vl-num-col').value || 'A').toUpperCase();

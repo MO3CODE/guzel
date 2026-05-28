@@ -236,10 +236,11 @@
     <div class="card">
       <div class="card-title">📊 إعدادات Google Sheet</div>
       <div class="label">معرّف الشيت (Sheet ID) — من رابط الشيت</div>
-      <input type="text" id="vl-sheet-id" placeholder="مثال: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" style="font-family:var(--mono);font-size:12px"/>
+      <input type="text" id="vl-sheet-id" placeholder="الصق الرابط الكامل أو الـ ID فقط..." style="font-family:var(--mono);font-size:12px" oninput="vlParseSheetId(this)"/>
       <div style="font-size:12px;color:var(--text3);margin-top:4px">
-        رابط الشيت: docs.google.com/spreadsheets/d/<strong>SHEET_ID</strong>/edit
+        يمكنك لصق الرابط كاملاً: docs.google.com/spreadsheets/d/<strong>SHEET_ID</strong>/edit
       </div>
+      <div id="vl-sheet-id-parsed" style="display:none;margin-top:6px;padding:6px 10px;background:var(--success-bg);border-radius:var(--radius);font-size:12px;color:var(--success);font-family:var(--mono)"></div>
       <div style="margin-top:8px;padding:8px 12px;background:var(--warning-bg);border:1px solid #fcd34d;border-radius:var(--radius);font-size:12px;color:var(--warning)">
         ⚠️ يجب أن يكون الشيت <strong>Google Sheets أصلي</strong> — لا يعمل مع ملفات Excel (.xlsx) المرفوعة على Drive.
         إذا كان ملف Excel: افتحه في Drive ← الزر الأيمن ← <strong>"فتح بـ Google Sheets"</strong> ← انسخ الـ ID من الرابط الجديد.
