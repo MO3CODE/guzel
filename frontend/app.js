@@ -998,8 +998,9 @@ async function vlWriteToSheet() {
 
       // Use native hyperlink (textFormatRuns) instead of =HYPERLINK() formula
       // — avoids locale/quote issues, works in all sheets
+      const btnLabel = document.getElementById('vl-btn-label').value.trim() || '▶ فيديو';
       const linkCell = {
-        userEnteredValue: { stringValue: '▶ فيديو' },
+        userEnteredValue: { stringValue: btnLabel },
         textFormatRuns: [
           { startIndex: 0, format: { link: { uri: link }, foregroundColorStyle: { rgbColor: { red: 0.11, green: 0.31, blue: 0.85 } }, underline: true } }
         ]
