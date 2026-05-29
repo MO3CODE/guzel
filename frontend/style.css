@@ -165,6 +165,9 @@ textarea{resize:vertical;min-height:120px}
 .server-banner.ok{background:var(--success-bg);color:var(--success)}
 .server-banner.err{background:var(--danger-bg);color:var(--danger)}
 
+/* ── Monitor Tab ── */
+#mon-browser .folder-item{cursor:pointer}
+
 /* ── Video Links Tab ── */
 .vl-sel-btn-wrap{margin-bottom:4px}
 #vl-folder-browser .folder-item:hover .fi-name{color:var(--accent)}

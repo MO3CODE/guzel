@@ -118,7 +118,7 @@ let _nodeId = 0;
 
 // ─── Tabs ────────────────────────────────────
 function switchTab(n) {
-  ['folders', 'browse', 'pdf-extract', 'pdf-merge', 'video-links'].forEach((t, i) => {
+  ['folders', 'browse', 'pdf-extract', 'pdf-merge', 'video-links', 'monitor'].forEach((t, i) => {
     document.querySelectorAll('.tab')[i].classList.toggle('active', t === n);
     document.getElementById('tab-' + t).classList.toggle('active', t === n);
   });
@@ -1054,6 +1054,310 @@ async function vlWriteToSheet() {
       addLog('vl-log', '⚠️ الملف ليس Google Sheet أصلي — افتح الملف في Drive ← اضغط "فتح بـ Google Sheets" ← انسخ الـ ID الجديد', 'e');
   }
   btn.disabled = false; btn.textContent = '✍️ كتابة الروابط في الشيت الآن';
+}
+
+// ═══════════════════════════════════════════
+// MONITOR FOLDERS (Tab 6)
+// ═══════════════════════════════════════════
+const MON_FOLDERS_KEY  = 'mon_folders';
+const MON_SNAPSHOT_KEY = 'mon_snapshot';
+
+let monFolders  = JSON.parse(localStorage.getItem(MON_FOLDERS_KEY)  || '[]');
+let monSnapshot = JSON.parse(localStorage.getItem(MON_SNAPSHOT_KEY) || 'null');
+let monBrowseStack = [];
+
+// ─── Init ────────────────────────────────────
+(function monInit() {
+  setTimeout(() => {
+    renderMonFolders();
+    renderSnapshotInfo();
+  }, 0);
+})();
+
+// ─── Folder list ─────────────────────────────
+function saveMonFolders() { localStorage.setItem(MON_FOLDERS_KEY, JSON.stringify(monFolders)); }
+function saveMonSnapshot() { localStorage.setItem(MON_SNAPSHOT_KEY, JSON.stringify(monSnapshot)); }
+
+function renderMonFolders() {
+  const list = document.getElementById('mon-folders-list');
+  const count = document.getElementById('mon-folders-count');
+  if (!list) return;
+  count.textContent = monFolders.length ? `(${monFolders.length})` : '';
+  if (!monFolders.length) {
+    list.innerHTML = '<div class="empty-state" style="padding:1rem">لا توجد مجلدات مضافة بعد</div>';
+    document.getElementById('mon-snap-btn').disabled = true;
+    return;
+  }
+  list.innerHTML = monFolders.map((f, i) => `
+    <div class="sel-folder-item">
+      <span style="font-size:18px">📁</span>
+      <div style="flex:1;min-width:0">
+        <div class="sfi-name">${escAttr(f.name)}</div>
+        <div class="sfi-path">${escAttr(f.path || f.id)}</div>
+      </div>
+      <button class="btn btn-sm" onclick="monRemoveFolder(${i})" style="padding:3px 8px;color:var(--danger)">✕</button>
+    </div>`).join('');
+  document.getElementById('mon-snap-btn').disabled = !token;
+}
+
+function monRemoveFolder(i) {
+  monFolders.splice(i, 1);
+  saveMonFolders();
+  renderMonFolders();
+  addLog('mon-log', `✅ تم إزالة المجلد`, 's');
+}
+
+// ─── Browser ─────────────────────────────────
+function monOpenBrowser() {
+  document.getElementById('mon-browser-card').style.display = 'block';
+  if (token) monLoadRoot();
+}
+function monCloseBrowser() { document.getElementById('mon-browser-card').style.display = 'none'; }
+
+async function monLoadRoot() {
+  if (!token) { alert('يرجى الاتصال بـ Drive أولاً'); return; }
+  monBrowseStack = [];
+  await monLoadBrowser(null);
+}
+
+async function monLoadBrowser(folderId) {
+  const browser = document.getElementById('mon-browser');
+  browser.innerHTML = '<div class="empty-state"><span class="spin"></span> جاري التحميل...</div>';
+  monUpdateBC();
+  try {
+    const q = folderId
+      ? `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+      : `mimeType='application/vnd.google-apps.folder' and trashed=false and 'root' in parents`;
+    const r = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&orderBy=name&pageSize=200`,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error?.message || 'خطأ');
+    const folders = d.files || [];
+    const curName = monBrowseStack.length ? monBrowseStack[monBrowseStack.length - 1].name : 'Drive';
+    let html = '';
+    if (folderId) {
+      html += `<button class="btn btn-primary" style="width:100%;margin-bottom:10px"
+        onclick="monAddFolder('${folderId}','${escJs(curName)}','${escJs(monBrowseStack.map(b=>b.name).join(' / '))}')">
+        ✅ إضافة هذا المجلد للمراقبة: "${escAttr(curName)}"
+      </button>`;
+    }
+    if (!folders.length) {
+      html += '<div class="empty-state" style="margin-top:0">لا توجد مجلدات فرعية</div>';
+    } else {
+      html += `<div class="folder-grid">${folders.map(f => `
+        <div class="folder-item" onclick="monOpenF('${f.id}','${escJs(f.name)}')">
+          <span style="font-size:20px">📁</span>
+          <div style="flex:1;min-width:0">
+            <div class="fi-name">${escAttr(f.name)}</div>
+            <div style="font-size:11px;color:var(--accent);margin-top:1px">↵ دخول</div>
+          </div>
+        </div>`).join('')}</div>`;
+    }
+    browser.innerHTML = html;
+    document.getElementById('mon-up-btn').disabled = monBrowseStack.length === 0;
+  } catch (e) {
+    browser.innerHTML = `<div class="empty-state">❌ ${e.message}</div>`;
+  }
+}
+
+function monAddFolder(id, name, path) {
+  if (monFolders.some(f => f.id === id)) {
+    addLog('mon-log', `⚠️ المجلد "${name}" مضاف مسبقاً`, 'e'); return;
+  }
+  monFolders.push({ id, name, path });
+  saveMonFolders();
+  renderMonFolders();
+  monCloseBrowser();
+  addLog('mon-log', `✅ تمت إضافة: ${name}`, 's');
+}
+
+function monOpenF(id, name) { monBrowseStack.push({ id, name }); monLoadBrowser(id); }
+
+function monGoUp() {
+  if (!monBrowseStack.length) return;
+  monBrowseStack.pop();
+  const p = monBrowseStack[monBrowseStack.length - 1];
+  monLoadBrowser(p ? p.id : null);
+}
+
+function monUpdateBC() {
+  let h = `<span class="bc-item" onclick="monBrowseStack=[];monLoadBrowser(null)">Drive</span>`;
+  monBrowseStack.forEach((b, i) => {
+    h += `<span style="color:var(--text3)"> › </span>`;
+    if (i < monBrowseStack.length - 1)
+      h += `<span class="bc-item" onclick="monBrowseStack=monBrowseStack.slice(0,${i+1});monLoadBrowser('${b.id}')">${escAttr(b.name)}</span>`;
+    else
+      h += `<span class="bc-cur">${escAttr(b.name)}</span>`;
+  });
+  document.getElementById('mon-breadcrumb').innerHTML = h;
+}
+
+// ─── Snapshot ────────────────────────────────
+async function monScanFolder(folderId, folderName) {
+  let allFiles = [], pageToken = null;
+  do {
+    let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`'${folderId}' in parents and trashed=false`)}&fields=nextPageToken,files(id,name,mimeType,modifiedTime,size,webViewLink)&orderBy=name&pageSize=300`;
+    if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error?.message || 'خطأ');
+    allFiles = allFiles.concat((d.files || []).map(f => ({ ...f, _folder: folderName })));
+    pageToken = d.nextPageToken || null;
+  } while (pageToken);
+  return allFiles;
+}
+
+async function monTakeSnapshot() {
+  if (!monFolders.length) { alert('أضف مجلدات أولاً'); return; }
+  if (!token) { alert('يرجى الاتصال بـ Drive أولاً'); return; }
+
+  const btn = document.getElementById('mon-snap-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> جاري الفحص...';
+  document.getElementById('mon-prog-wrap').style.display = 'block';
+  document.getElementById('mon-prog-bar').style.width = '0%';
+  document.getElementById('mon-results-card').style.display = 'none';
+  addLog('mon-log', `📸 بدء أخذ اللقطة لـ ${monFolders.length} مجلد...`, 'i');
+
+  try {
+    const data = {};
+    for (let i = 0; i < monFolders.length; i++) {
+      const f = monFolders[i];
+      addLog('mon-log', `  📁 فحص: ${f.name}`, 'i');
+      data[f.id] = await monScanFolder(f.id, f.name);
+      document.getElementById('mon-prog-bar').style.width = Math.round((i + 1) / monFolders.length * 100) + '%';
+    }
+    const totalFiles = Object.values(data).reduce((s, arr) => s + arr.length, 0);
+    monSnapshot = { timestamp: Date.now(), data };
+    saveMonSnapshot();
+    renderSnapshotInfo();
+    addLog('mon-log', `✅ تم حفظ اللقطة — ${totalFiles} ملف في ${monFolders.length} مجلد`, 's');
+  } catch (e) {
+    addLog('mon-log', `❌ ${e.message}`, 'e');
+  }
+
+  btn.disabled = false; btn.textContent = '📸 خذ لقطة الآن';
+}
+
+function renderSnapshotInfo() {
+  const el = document.getElementById('mon-snapshot-info');
+  const checkBtn = document.getElementById('mon-check-btn');
+  const clearBtn = document.getElementById('mon-clear-btn');
+  if (!el) return;
+  if (!monSnapshot) {
+    el.textContent = 'لم يتم أخذ لقطة بعد — اضغط "خذ لقطة الآن" لحفظ الحالة الحالية';
+    checkBtn.style.display = 'none';
+    clearBtn.style.display = 'none';
+    return;
+  }
+  const dt = new Date(monSnapshot.timestamp);
+  const totalFiles = Object.values(monSnapshot.data || {}).reduce((s, a) => s + a.length, 0);
+  el.innerHTML = `آخر لقطة: <strong>${dt.toLocaleDateString('ar-SA')} — ${dt.toLocaleTimeString('ar-SA')}</strong> (${totalFiles} ملف)`;
+  checkBtn.style.display = 'inline-flex';
+  clearBtn.style.display = 'inline-flex';
+}
+
+function monClearSnapshot() {
+  if (!confirm('هل تريد مسح اللقطة المحفوظة؟')) return;
+  monSnapshot = null;
+  localStorage.removeItem(MON_SNAPSHOT_KEY);
+  renderSnapshotInfo();
+  document.getElementById('mon-results-card').style.display = 'none';
+  addLog('mon-log', '🗑 تم مسح اللقطة', 'i');
+}
+
+// ─── Check Changes ───────────────────────────
+async function monCheckChanges() {
+  if (!monSnapshot) { alert('خذ لقطة أولاً'); return; }
+  if (!monFolders.length) { alert('أضف مجلدات أولاً'); return; }
+  if (!token) { alert('يرجى الاتصال بـ Drive أولاً'); return; }
+
+  const btn = document.getElementById('mon-check-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> جاري الفحص...';
+  document.getElementById('mon-prog-wrap').style.display = 'block';
+  document.getElementById('mon-prog-bar').style.width = '0%';
+  addLog('mon-log', `🔍 فحص التغييرات منذ ${new Date(monSnapshot.timestamp).toLocaleString('ar-SA')}...`, 'i');
+
+  try {
+    const added = [], deleted = [], modified = [];
+
+    for (let i = 0; i < monFolders.length; i++) {
+      const folder = monFolders[i];
+      const oldFiles = monSnapshot.data[folder.id] || [];
+      const newFiles = await monScanFolder(folder.id, folder.name);
+
+      const oldMap = Object.fromEntries(oldFiles.map(f => [f.id, f]));
+      const newMap = Object.fromEntries(newFiles.map(f => [f.id, f]));
+
+      // New files
+      newFiles.forEach(f => {
+        if (!oldMap[f.id]) added.push({ ...f, _folderName: folder.name });
+      });
+      // Deleted files
+      oldFiles.forEach(f => {
+        if (!newMap[f.id]) deleted.push({ ...f, _folderName: folder.name });
+      });
+      // Modified files
+      newFiles.forEach(f => {
+        const old = oldMap[f.id];
+        if (old && old.modifiedTime !== f.modifiedTime) modified.push({ ...f, _folderName: folder.name, _oldTime: old.modifiedTime });
+      });
+
+      document.getElementById('mon-prog-bar').style.width = Math.round((i + 1) / monFolders.length * 100) + '%';
+    }
+
+    addLog('mon-log', `✅ اكتمل الفحص — ${added.length} جديد، ${deleted.length} محذوف، ${modified.length} معدّل`, 's');
+    renderMonResults(added, deleted, modified);
+
+  } catch (e) {
+    addLog('mon-log', `❌ ${e.message}`, 'e');
+  }
+
+  btn.disabled = false; btn.textContent = '🔍 فحص التغييرات';
+}
+
+function renderMonResults(added, deleted, modified) {
+  const card = document.getElementById('mon-results-card');
+  const summary = document.getElementById('mon-results-summary');
+  const body = document.getElementById('mon-results-body');
+  card.style.display = 'block';
+
+  const total = added.length + deleted.length + modified.length;
+  if (!total) {
+    summary.innerHTML = `<span class="badge badge-success" style="font-size:14px">✅ لا توجد تغييرات — كل شيء كما هو</span>`;
+    body.innerHTML = '';
+    return;
+  }
+
+  summary.innerHTML = [
+    added.length   ? `<span class="badge badge-success">🆕 ${added.length} جديد</span>` : '',
+    modified.length ? `<span class="badge badge-info" style="background:var(--accent-bg);color:var(--accent-text)">✏️ ${modified.length} معدّل</span>` : '',
+    deleted.length ? `<span class="badge badge-warning">🗑 ${deleted.length} محذوف</span>` : '',
+  ].join('');
+
+  const section = (title, icon, items, cls, extraCol = '') => {
+    if (!items.length) return '';
+    return `<div style="margin-bottom:20px">
+      <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">${icon} ${title} (${items.length})</div>
+      <table class="data-table">
+        <thead><tr><th>الاسم</th><th>المجلد</th>${extraCol ? `<th>${extraCol}</th>` : ''}<th>رابط</th></tr></thead>
+        <tbody>${items.map(f => `
+          <tr class="${cls}">
+            <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escAttr(f.name)}</td>
+            <td style="font-size:12px;color:var(--text3)">${escAttr(f._folderName || '')}</td>
+            ${extraCol ? `<td style="font-size:11px;color:var(--text3)">${f._oldTime ? `${new Date(f._oldTime).toLocaleDateString('ar-SA')} ← ${new Date(f.modifiedTime).toLocaleDateString('ar-SA')}` : ''}</td>` : ''}
+            <td>${f.webViewLink ? `<a href="${escAttr(f.webViewLink)}" target="_blank" style="color:var(--accent);font-size:12px">🔗 فتح</a>` : '<span style="color:var(--text3);font-size:12px">—</span>'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  };
+
+  body.innerHTML =
+    section('ملفات جديدة', '🆕', added, '') +
+    section('ملفات معدّلة', '✏️', modified, '', 'التاريخ') +
+    section('ملفات محذوفة', '🗑', deleted, '');
 }
 
 // ═══════════════════════════════════════════

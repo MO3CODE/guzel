@@ -80,6 +80,7 @@
     <button class="tab" onclick="switchTab('pdf-extract')">📄 استخراج PDF</button>
     <button class="tab" onclick="switchTab('pdf-merge')">🗂 دمج PDF</button>
     <button class="tab" onclick="switchTab('video-links')">🎬 روابط الفيديو</button>
+    <button class="tab" onclick="switchTab('monitor')">👁 مراقبة المجلدات</button>
   </div>
 
   <!-- ══ TAB 1: Create Folders ══ -->
@@ -389,6 +390,57 @@
     </div>
 
     <div class="log" id="vl-log">انتظار تحديد المجلد...</div>
+
+  </div>
+
+  <!-- ══ TAB 6: Monitor Folders ══ -->
+  <div id="tab-monitor" class="panel">
+
+    <!-- Selected folders list -->
+    <div class="card">
+      <div class="card-title">📁 المجلدات المراقَبة
+        <span id="mon-folders-count" style="font-size:12px;font-weight:400;color:var(--text3);margin-right:8px"></span>
+      </div>
+      <div id="mon-folders-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+        <div class="empty-state" style="padding:1rem">لا توجد مجلدات مضافة بعد</div>
+      </div>
+      <button class="btn btn-primary" onclick="monOpenBrowser()">+ إضافة مجلد للمراقبة</button>
+    </div>
+
+    <!-- Browser (hidden by default) -->
+    <div class="card" id="mon-browser-card" style="display:none">
+      <div class="card-title">🔍 تصفح Drive لإضافة مجلد</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="btn btn-primary" onclick="monLoadRoot()">تحميل مجلداتي</button>
+        <button class="btn" onclick="monGoUp()" id="mon-up-btn" disabled>↑ رجوع</button>
+        <button class="btn btn-sm" style="margin-right:auto" onclick="monCloseBrowser()">✕ إغلاق</button>
+      </div>
+      <div class="breadcrumb" id="mon-breadcrumb"><span class="bc-cur">Drive</span></div>
+      <div id="mon-browser"><div class="empty-state">اضغط "تحميل مجلداتي"</div></div>
+    </div>
+
+    <!-- Snapshot & Check -->
+    <div class="card">
+      <div class="card-title">📸 اللقطات والتغييرات</div>
+      <div id="mon-snapshot-info" style="margin-bottom:12px;font-size:13px;color:var(--text3)">لم يتم أخذ لقطة بعد</div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="mon-snap-btn" onclick="monTakeSnapshot()" disabled>📸 خذ لقطة الآن</button>
+        <button class="btn" id="mon-check-btn" onclick="monCheckChanges()" disabled style="display:none">🔍 فحص التغييرات</button>
+        <button class="btn btn-sm" style="color:var(--danger)" onclick="monClearSnapshot()" id="mon-clear-btn" style="display:none">🗑 مسح اللقطة</button>
+      </div>
+      <div class="progress-wrap" id="mon-prog-wrap" style="display:none">
+        <div class="progress-bar" id="mon-prog-bar"></div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="card" id="mon-results-card" style="display:none">
+      <div class="card-title">📊 نتائج الفحص</div>
+      <div id="mon-results-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px"></div>
+      <div id="mon-results-body"></div>
+    </div>
+
+    <div class="log" id="mon-log">في انتظار إضافة مجلدات...</div>
 
   </div>
 
