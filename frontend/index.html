@@ -422,13 +422,31 @@
     <!-- Snapshot & Check -->
     <div class="card">
       <div class="card-title">📸 اللقطات والتغييرات</div>
-      <div id="mon-snapshot-info" style="margin-bottom:12px;font-size:13px;color:var(--text3)">لم يتم أخذ لقطة بعد</div>
-      <div class="btn-row">
-        <button class="btn btn-primary" id="mon-snap-btn" onclick="monTakeSnapshot()" disabled>📸 خذ لقطة الآن</button>
-        <button class="btn" id="mon-check-btn" onclick="monCheckChanges()" disabled style="display:none">🔍 فحص التغييرات</button>
-        <button class="btn btn-sm" style="color:var(--danger)" onclick="monClearSnapshot()" id="mon-clear-btn" style="display:none">🗑 مسح اللقطة</button>
+
+      <!-- State: no snapshot yet -->
+      <div id="mon-state-empty">
+        <div style="padding:12px;background:var(--accent-bg);border-radius:var(--radius);font-size:13px;color:var(--accent-text);margin-bottom:12px">
+          ℹ️ احفظ اللقطة الأولى كخط أساس، ثم عد لاحقاً واضغط "فحص التغييرات" لمعرفة ما تغيّر
+        </div>
+        <button class="btn btn-primary" id="mon-snap-btn" onclick="monTakeSnapshot()" disabled>📸 حفظ اللقطة الأساسية</button>
       </div>
-      <div class="progress-wrap" id="mon-prog-wrap" style="display:none">
+
+      <!-- State: snapshot exists -->
+      <div id="mon-state-ready" style="display:none">
+        <div id="mon-snapshot-info" style="margin-bottom:12px;padding:10px;background:var(--success-bg);border:1px solid #86efac;border-radius:var(--radius);font-size:13px;color:var(--success)"></div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="mon-check-btn" onclick="monCheckChanges()">🔍 فحص التغييرات الآن</button>
+          <button class="btn btn-sm" style="color:var(--danger)" onclick="monClearSnapshot()">🗑 مسح اللقطة</button>
+        </div>
+      </div>
+
+      <!-- Update baseline (shown after check) -->
+      <div id="mon-update-wrap" style="display:none;margin-top:12px;padding:10px;background:var(--warning-bg);border:1px solid #fcd34d;border-radius:var(--radius)">
+        <div style="font-size:13px;color:var(--warning);margin-bottom:8px">⚠️ هل تريد تحديث اللقطة الأساسية لتصبح هذه التغييرات هي الوضع الجديد؟</div>
+        <button class="btn" onclick="monUpdateSnapshot()">✅ تحديث اللقطة الأساسية</button>
+      </div>
+
+      <div class="progress-wrap" id="mon-prog-wrap" style="display:none;margin-top:12px">
         <div class="progress-bar" id="mon-prog-bar"></div>
       </div>
     </div>

@@ -1237,33 +1237,39 @@ async function monTakeSnapshot() {
     addLog('mon-log', `❌ ${e.message}`, 'e');
   }
 
-  btn.disabled = false; btn.textContent = '📸 خذ لقطة الآن';
+  btn.disabled = false; btn.textContent = '📸 حفظ اللقطة الأساسية';
 }
 
 function renderSnapshotInfo() {
-  const el = document.getElementById('mon-snapshot-info');
-  const checkBtn = document.getElementById('mon-check-btn');
-  const clearBtn = document.getElementById('mon-clear-btn');
-  if (!el) return;
+  const empty = document.getElementById('mon-state-empty');
+  const ready = document.getElementById('mon-state-ready');
+  const info  = document.getElementById('mon-snapshot-info');
+  if (!empty) return;
+
   if (!monSnapshot) {
-    el.textContent = 'لم يتم أخذ لقطة بعد — اضغط "خذ لقطة الآن" لحفظ الحالة الحالية';
-    checkBtn.style.display = 'none';
-    clearBtn.style.display = 'none';
+    empty.style.display = 'block';
+    ready.style.display = 'none';
+    document.getElementById('mon-update-wrap').style.display = 'none';
     return;
   }
+
+  empty.style.display = 'none';
+  ready.style.display = 'block';
   const dt = new Date(monSnapshot.timestamp);
-  const totalFiles = Object.values(monSnapshot.data || {}).reduce((s, a) => s + a.length, 0);
-  el.innerHTML = `آخر لقطة: <strong>${dt.toLocaleDateString('ar-SA')} — ${dt.toLocaleTimeString('ar-SA')}</strong> (${totalFiles} ملف)`;
-  checkBtn.style.display = 'inline-flex';
-  clearBtn.style.display = 'inline-flex';
+  const total = Object.values(monSnapshot.data || {}).reduce((s, a) => s + a.length, 0);
+  info.innerHTML = `📸 اللقطة الأساسية: <strong>${dt.toLocaleDateString('ar-SA')} الساعة ${dt.toLocaleTimeString('ar-SA')}</strong> — ${total} ملف`;
 }
 
+let _monCurrentScan = null; // holds last live scan for update
+
 function monClearSnapshot() {
-  if (!confirm('هل تريد مسح اللقطة المحفوظة؟')) return;
+  if (!confirm('هل تريد مسح اللقطة الأساسية؟')) return;
   monSnapshot = null;
+  _monCurrentScan = null;
   localStorage.removeItem(MON_SNAPSHOT_KEY);
   renderSnapshotInfo();
   document.getElementById('mon-results-card').style.display = 'none';
+  document.getElementById('mon-update-wrap').style.display = 'none';
   addLog('mon-log', '🗑 تم مسح اللقطة', 'i');
 }
 
@@ -1281,40 +1287,52 @@ async function monCheckChanges() {
 
   try {
     const added = [], deleted = [], modified = [];
+    const currentScanData = {}; // save live scan for potential baseline update
 
     for (let i = 0; i < monFolders.length; i++) {
       const folder = monFolders[i];
       const oldFiles = monSnapshot.data[folder.id] || [];
       const newFiles = await monScanFolder(folder.id, folder.name);
+      currentScanData[folder.id] = newFiles;
 
       const oldMap = Object.fromEntries(oldFiles.map(f => [f.id, f]));
       const newMap = Object.fromEntries(newFiles.map(f => [f.id, f]));
 
-      // New files
-      newFiles.forEach(f => {
-        if (!oldMap[f.id]) added.push({ ...f, _folderName: folder.name });
-      });
-      // Deleted files
-      oldFiles.forEach(f => {
-        if (!newMap[f.id]) deleted.push({ ...f, _folderName: folder.name });
-      });
-      // Modified files
+      newFiles.forEach(f => { if (!oldMap[f.id]) added.push({ ...f, _folderName: folder.name }); });
+      oldFiles.forEach(f => { if (!newMap[f.id]) deleted.push({ ...f, _folderName: folder.name }); });
       newFiles.forEach(f => {
         const old = oldMap[f.id];
-        if (old && old.modifiedTime !== f.modifiedTime) modified.push({ ...f, _folderName: folder.name, _oldTime: old.modifiedTime });
+        if (old && old.modifiedTime !== f.modifiedTime)
+          modified.push({ ...f, _folderName: folder.name, _oldTime: old.modifiedTime });
       });
 
       document.getElementById('mon-prog-bar').style.width = Math.round((i + 1) / monFolders.length * 100) + '%';
     }
 
+    _monCurrentScan = currentScanData;
+    const hasChanges = added.length + deleted.length + modified.length > 0;
     addLog('mon-log', `✅ اكتمل الفحص — ${added.length} جديد، ${deleted.length} محذوف، ${modified.length} معدّل`, 's');
     renderMonResults(added, deleted, modified);
+
+    // Show update button only if there are changes
+    document.getElementById('mon-update-wrap').style.display = hasChanges ? 'block' : 'none';
 
   } catch (e) {
     addLog('mon-log', `❌ ${e.message}`, 'e');
   }
 
-  btn.disabled = false; btn.textContent = '🔍 فحص التغييرات';
+  btn.disabled = false; btn.textContent = '🔍 فحص التغييرات الآن';
+}
+
+function monUpdateSnapshot() {
+  if (!_monCurrentScan) return;
+  monSnapshot = { timestamp: Date.now(), data: _monCurrentScan };
+  saveMonSnapshot();
+  renderSnapshotInfo();
+  document.getElementById('mon-update-wrap').style.display = 'none';
+  document.getElementById('mon-results-card').style.display = 'none';
+  _monCurrentScan = null;
+  addLog('mon-log', '✅ تم تحديث اللقطة الأساسية — الوضع الحالي أصبح هو المرجع الجديد', 's');
 }
 
 function renderMonResults(added, deleted, modified) {
