@@ -119,7 +119,7 @@ let _nodeId = 0;
 
 // ─── Tabs ────────────────────────────────────
 function switchTab(n) {
-  ['folders', 'browse', 'pdf-extract', 'pdf-merge', 'video-links', 'monitor'].forEach((t, i) => {
+  ['folders', 'browse', 'pdf-extract', 'pdf-merge', 'video-links', 'monitor', 'whatsapp'].forEach((t, i) => {
     document.querySelectorAll('.tab')[i].classList.toggle('active', t === n);
     document.getElementById('tab-' + t).classList.toggle('active', t === n);
   });
@@ -1404,6 +1404,190 @@ function renderMonResults(added, deleted, modified) {
     section('ملفات جديدة', '🆕', added, '') +
     section('ملفات معدّلة', '✏️', modified, '', 'التاريخ') +
     section('ملفات محذوفة', '🗑', deleted, '');
+}
+
+// ═══════════════════════════════════════════
+// WHATSAPP TAB (Tab 7) — connects to localhost:3001
+// ═══════════════════════════════════════════
+const WA_BASE = 'http://localhost:3001';
+let waGroups = [], waPollTimer = null;
+
+// Auto-check connection on tab switch
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(waCheckStatus, 1000);
+});
+
+async function waConnect() {
+  addLog('wa-log', '🔄 محاولة الاتصال بالخدمة المحلية...', 'i');
+  await waCheckStatus();
+}
+
+async function waCheckStatus() {
+  try {
+    const r = await fetch(`${WA_BASE}/status`, { signal: AbortSignal.timeout(3000) });
+    const d = await r.json();
+    waRenderStatus(d);
+  } catch {
+    waRenderStatus({ status: 'offline' });
+  }
+}
+
+function waRenderStatus(d) {
+  const offline   = document.getElementById('wa-offline');
+  const qrWrap    = document.getElementById('wa-qr-wrap');
+  const connWrap  = document.getElementById('wa-connected-wrap');
+  const unreadCard = document.getElementById('wa-unread-card');
+  const groupsCard = document.getElementById('wa-groups-card');
+  const sendCard   = document.getElementById('wa-send-card');
+
+  offline.style.display  = 'none';
+  qrWrap.style.display   = 'none';
+  connWrap.style.display = 'none';
+  clearInterval(waPollTimer);
+
+  if (d.status === 'offline' || !d.status) {
+    offline.style.display = 'block';
+    unreadCard.style.display = groupsCard.style.display = sendCard.style.display = 'none';
+    addLog('wa-log', '❌ الخدمة المحلية غير شغّالة — شغّل start.bat أولاً', 'e');
+    return;
+  }
+
+  if (d.status === 'qr') {
+    qrWrap.style.display = 'block';
+    document.getElementById('wa-qr-img').src = d.qr || '';
+    addLog('wa-log', '📱 امسح الـ QR لتسجيل الدخول', 'i');
+    // Poll for connection every 3s
+    waPollTimer = setInterval(waCheckStatus, 3000);
+    return;
+  }
+
+  if (d.status === 'connected') {
+    connWrap.style.display = 'block';
+    document.getElementById('wa-jid').textContent = d.jid || '';
+    unreadCard.style.display = groupsCard.style.display = sendCard.style.display = 'block';
+    addLog('wa-log', '✅ متصل بواتساب — جاري تحميل البيانات...', 's');
+    waLoadUnread();
+    waLoadGroups();
+    // Poll for unread every 15s
+    waPollTimer = setInterval(waLoadUnread, 15_000);
+  }
+}
+
+async function waLoadUnread() {
+  try {
+    const r = await fetch(`${WA_BASE}/unread-files`);
+    const files = await r.json();
+    const badge = document.getElementById('wa-badge');
+    const count = document.getElementById('wa-unread-count');
+
+    if (files.length) {
+      badge.style.display = 'inline';
+      badge.textContent = files.length;
+      count.textContent = files.length;
+    } else {
+      badge.style.display = 'none';
+      count.textContent = '0';
+    }
+
+    const list = document.getElementById('wa-unread-list');
+    if (!files.length) { list.innerHTML = '<div class="empty-state" style="padding:.5rem">لا توجد ملفات جديدة</div>'; return; }
+
+    const icons = { pdf: '📄', video: '🎥', image: '🖼' };
+    list.innerHTML = files.map((f, i) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
+        <span style="font-size:24px">${icons[f.fileType] || '📎'}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px">${escAttr(f.groupName)}</div>
+          <div style="font-size:12px;color:var(--text3)">${escAttr(f.caption || f.fileType)} • ${new Date(f.ts).toLocaleTimeString('ar-SA')}</div>
+          <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">${escAttr(f.sender)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <button class="btn btn-sm" onclick="waForwardFile(${i})" title="إعادة توجيه">↗ توجيه</button>
+        </div>
+      </div>`).join('');
+
+    window._waUnreadFiles = files;
+  } catch (e) {
+    addLog('wa-log', '❌ ' + e.message, 'e');
+  }
+}
+
+async function waClearUnread() {
+  await fetch(`${WA_BASE}/unread-files`, { method: 'DELETE' });
+  document.getElementById('wa-badge').style.display = 'none';
+  await waLoadUnread();
+}
+
+async function waLoadGroups() {
+  try {
+    const r = await fetch(`${WA_BASE}/groups`);
+    waGroups = await r.json();
+    document.getElementById('wa-groups-count').textContent = waGroups.length;
+    document.getElementById('wa-groups-list').innerHTML = waGroups.map(g => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border);font-size:13px">
+        <span>👥</span>
+        <span style="flex:1">${escAttr(g.name)}</span>
+        <span style="font-size:11px;color:var(--text3)">${g.participants} عضو</span>
+        <button class="btn btn-sm" onclick="waSendTo('${escJs(g.id)}','${escJs(g.name)}')">إرسال</button>
+      </div>`).join('');
+
+    // Update send dropdown
+    const sel = document.getElementById('wa-send-group');
+    sel.innerHTML = '<option value="">-- اختر مجموعة --</option>' +
+      waGroups.map(g => `<option value="${escAttr(g.id)}">${escAttr(g.name)}</option>`).join('');
+  } catch (e) {
+    addLog('wa-log', '❌ ' + e.message, 'e');
+  }
+}
+
+function waSendTo(jid, name) {
+  document.getElementById('wa-send-group').value = jid;
+  document.getElementById('wa-send-text').focus();
+  switchTab('whatsapp');
+}
+
+async function waSendMsg() {
+  const jid  = document.getElementById('wa-send-group').value;
+  const text = document.getElementById('wa-send-text').value.trim();
+  if (!jid)  { alert('اختر مجموعة'); return; }
+  if (!text) { alert('اكتب رسالة'); return; }
+  try {
+    addLog('wa-log', `📤 إرسال للمجموعة...`, 'i');
+    const r = await fetch(`${WA_BASE}/send`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jid, text })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      addLog('wa-log', '✅ تم الإرسال', 's');
+      document.getElementById('wa-send-text').value = '';
+    } else throw new Error(d.error);
+  } catch (e) { addLog('wa-log', '❌ ' + e.message, 'e'); }
+}
+
+async function waForwardFile(idx) {
+  const file = window._waUnreadFiles?.[idx];
+  if (!file) return;
+  const toJid = prompt(`أدخل JID المجموعة المستهدفة:\n(انسخه من قائمة المجموعات)`);
+  if (!toJid) return;
+  const note = `📎 ملف من مجموعة "${file.groupName}"\nالنوع: ${file.fileType}\n${file.caption ? 'الوصف: ' + file.caption : ''}`;
+  try {
+    const r = await fetch(`${WA_BASE}/forward`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fromJid: file.jid, messageId: file.id, toJid, note })
+    });
+    const d = await r.json();
+    if (d.ok) addLog('wa-log', '✅ تم التوجيه', 's');
+    else throw new Error(d.error);
+  } catch (e) { addLog('wa-log', '❌ ' + e.message, 'e'); }
+}
+
+async function waLogout() {
+  if (!confirm('تسجيل الخروج من واتساب؟')) return;
+  await fetch(`${WA_BASE}/logout`, { method: 'POST' });
+  clearInterval(waPollTimer);
+  waRenderStatus({ status: 'offline' });
+  addLog('wa-log', '🚪 تم تسجيل الخروج', 'i');
 }
 
 // ═══════════════════════════════════════════
