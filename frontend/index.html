@@ -262,16 +262,39 @@
 
     <div class="card">
       <div class="card-title">📂 مجلد الفيديوهات في Drive</div>
-      <div class="label">تصفح واختر المجلد الذي يحتوي على الفيديوهات</div>
-      <div style="display:flex;gap:8px;margin-bottom:12px;margin-top:8px">
-        <button class="btn btn-primary" onclick="vlLoadRoot()">تحميل مجلداتي</button>
-        <button class="btn" onclick="vlGoUp()" id="vl-up-btn" disabled>↑ رجوع</button>
+
+      <!-- Mode toggle -->
+      <div style="display:flex;gap:0;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+        <button class="vl-range-tab active" id="vl-src-browse" onclick="vlSetSourceMode('browse')">🔍 تصفح مجلداتي</button>
+        <button class="vl-range-tab" id="vl-src-link" onclick="vlSetSourceMode('link')">🔗 لصق رابط المجلد</button>
       </div>
-      <div class="breadcrumb" id="vl-breadcrumb"><span class="bc-cur">Drive</span></div>
-      <div id="vl-folder-browser"><div class="empty-state">اضغط "تحميل مجلداتي" لتصفح المجلدات</div></div>
-      <div id="vl-selected-folder" style="display:none;margin-top:10px;padding:10px;background:var(--success-bg);border:1px solid #86efac;border-radius:var(--radius)">
+
+      <!-- Browse mode -->
+      <div id="vl-source-browse">
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button class="btn btn-primary" onclick="vlLoadRoot()">تحميل مجلداتي</button>
+          <button class="btn" onclick="vlGoUp()" id="vl-up-btn" disabled>↑ رجوع</button>
+        </div>
+        <div class="breadcrumb" id="vl-breadcrumb"><span class="bc-cur">Drive</span></div>
+        <div id="vl-folder-browser"><div class="empty-state">اضغط "تحميل مجلداتي" لتصفح المجلدات</div></div>
+      </div>
+
+      <!-- Link mode -->
+      <div id="vl-source-link" style="display:none">
+        <div class="label">الصق رابط المجلد من Drive</div>
+        <input type="text" id="vl-folder-url" placeholder="https://drive.google.com/drive/folders/..." oninput="vlParseFolderUrl(this)"/>
+        <div style="font-size:12px;color:var(--text3);margin-top:4px">
+          يدعم: رابط المجلد المشارك • المجلدات المشتركة معك • Drive المشترك (Shared Drive)
+        </div>
+        <div id="vl-folder-url-parsed" style="display:none;margin-top:8px;padding:8px 12px;background:var(--accent-bg);border-radius:var(--radius);font-size:13px;color:var(--accent-text)"></div>
+        <button class="btn btn-primary" style="margin-top:10px;width:100%" onclick="vlSelectFromUrl()">✅ استخدام هذا المجلد</button>
+      </div>
+
+      <!-- Selected result (both modes) -->
+      <div id="vl-selected-folder" style="display:none;margin-top:12px;padding:10px;background:var(--success-bg);border:1px solid #86efac;border-radius:var(--radius)">
         <span style="color:var(--success);font-weight:600">✅ المجلد المختار: </span>
         <span id="vl-sel-name" style="color:var(--success)"></span>
+        <button class="btn btn-sm" style="margin-right:8px;color:var(--text3)" onclick="vlClearFolder()">✕ تغيير</button>
       </div>
     </div>
 

@@ -708,7 +708,78 @@ async function mergePDFs() {
 // ═══════════════════════════════════════════
 // VIDEO LINKS → GOOGLE SHEET (Tab 5)
 // ═══════════════════════════════════════════
-let vlStack = [], vlSelectedFolder = null, vlVideos = [], vlRangeMode = 'all';
+let vlStack = [], vlSelectedFolder = null, vlVideos = [], vlRangeMode = 'all', vlSourceMode = 'browse';
+
+// ─── Source mode toggle ───────────────────────
+function vlSetSourceMode(mode) {
+  vlSourceMode = mode;
+  document.getElementById('vl-src-browse').classList.toggle('active', mode === 'browse');
+  document.getElementById('vl-src-link').classList.toggle('active', mode === 'link');
+  document.getElementById('vl-source-browse').style.display = mode === 'browse' ? 'block' : 'none';
+  document.getElementById('vl-source-link').style.display  = mode === 'link'   ? 'block' : 'none';
+}
+
+function vlParseFolderUrl(input) {
+  const id = vlExtractFolderId(input.value);
+  const el = document.getElementById('vl-folder-url-parsed');
+  if (id) {
+    el.style.display = 'block';
+    el.innerHTML = `✅ Folder ID: <strong style="font-family:var(--mono)">${id}</strong>`;
+  } else {
+    el.style.display = input.value.trim() ? 'block' : 'none';
+    el.innerHTML = input.value.trim() ? '⚠️ لم يتم التعرف على رابط صحيح' : '';
+    el.style.background = input.value.trim() ? 'var(--warning-bg)' : '';
+    el.style.color = input.value.trim() ? 'var(--warning)' : '';
+  }
+}
+
+function vlExtractFolderId(url) {
+  // https://drive.google.com/drive/folders/FOLDER_ID
+  // https://drive.google.com/drive/u/0/folders/FOLDER_ID
+  // https://drive.google.com/open?id=FOLDER_ID
+  const patterns = [
+    /\/folders\/([a-zA-Z0-9_-]{10,})/,
+    /[?&]id=([a-zA-Z0-9_-]{10,})/,
+    /^([a-zA-Z0-9_-]{25,})$/,  // raw ID pasted directly
+  ];
+  for (const p of patterns) {
+    const m = url.trim().match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+async function vlSelectFromUrl() {
+  const url = document.getElementById('vl-folder-url').value.trim();
+  const id  = vlExtractFolderId(url);
+  if (!id) { alert('رابط غير صحيح — تأكد من لصق رابط مجلد Drive'); return; }
+
+  // Try to get folder name from API
+  let name = id;
+  try {
+    const r = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${id}?fields=name&supportsAllDrives=true`,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    const d = await r.json();
+    if (r.ok) name = d.name || id;
+    else if (r.status === 404) {
+      addLog('vl-log', '⚠️ المجلد غير متاح بتوكنك الحالي — تأكد من أن الرابط مشارك معك أو أن لديك صلاحية وصول', 'e');
+      return;
+    }
+  } catch { /* use ID as name */ }
+
+  vlSelectFolder(id, name);
+}
+
+function vlClearFolder() {
+  vlSelectedFolder = null;
+  vlVideos = [];
+  document.getElementById('vl-selected-folder').style.display = 'none';
+  document.getElementById('vl-fetch-btn').disabled = true;
+  document.getElementById('vl-preview').style.display = 'none';
+  document.getElementById('vl-write-card').style.display = 'none';
+}
 
 function vlSetRangeMode(mode) {
   vlRangeMode = mode;
@@ -839,7 +910,7 @@ async function vlListVideosInFolder(folderId) {
   const mimeQ = VIDEO_MIMES.map(m => `mimeType='${m}'`).join(' or ');
   const baseQ = `'${folderId}' in parents and (${mimeQ}) and trashed=false`;
   do {
-    let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(baseQ)}&fields=nextPageToken,files(id,name,mimeType,webViewLink,webContentLink)&orderBy=name&pageSize=300`;
+    let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(baseQ)}&fields=nextPageToken,files(id,name,mimeType,webViewLink,webContentLink)&orderBy=name&pageSize=300&supportsAllDrives=true&includeItemsFromAllDrives=true`;
     if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
     const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
     const d = await r.json();
