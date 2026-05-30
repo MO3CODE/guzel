@@ -1072,10 +1072,69 @@ async function vlFetchVideos() {
       (inclName ? ` + أسماء في <strong>${endCol}${startRow}:${endCol}${endRow}</strong>` : '') +
       ` ← ورقة <strong>"${escAttr(sheetName)}"</strong>`;
     document.getElementById('vl-write-card').style.display = 'block';
+    document.getElementById('vl-dupes-card').style.display = 'block';
+    document.getElementById('vl-dupes-result').innerHTML = '<div style="font-size:13px;color:var(--text3)">اضغط "تحليل الآن" لفحص الأسماء المكررة</div>';
   } catch (e) {
     addLog('vl-log', `❌ ${e.message}`, 'e');
   }
   btn.disabled = false; btn.textContent = '🔍 سحب قائمة الفيديوهات';
+}
+
+function vlAnalyzeDupes() {
+  if (!vlVideos.length) return;
+  const el = document.getElementById('vl-dupes-result');
+
+  // Normalize name: lowercase, remove extension, collapse spaces, strip leading numbers+separators
+  function normalize(name) {
+    return name
+      .replace(/\.[^.]+$/, '')          // remove extension
+      .replace(/^\d+[\s._\-–—]+/, '')   // remove leading number + separator
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
+  // Group by normalized name
+  const groups = {};
+  vlVideos.forEach(f => {
+    const key = normalize(f.name);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(f);
+  });
+
+  const dupes = Object.values(groups).filter(g => g.length > 1);
+
+  if (!dupes.length) {
+    el.innerHTML = `<div style="padding:12px;background:var(--success-bg);border-radius:var(--radius);color:var(--success);font-size:13px">✅ لا توجد فيديوهات مكررة — كل الأسماء فريدة</div>`;
+    return;
+  }
+
+  let html = `<div style="margin-bottom:10px;font-size:13px;color:var(--warning)">⚠️ تم العثور على <strong>${dupes.length}</strong> مجموعة تكرار</div>`;
+
+  html += `<div style="display:flex;flex-direction:column;gap:10px">`;
+  dupes.forEach((group, gi) => {
+    html += `<div style="border:1px solid #fcd34d;border-radius:var(--radius);overflow:hidden">
+      <div style="padding:8px 12px;background:var(--warning-bg);font-size:12px;font-weight:600;color:var(--warning)">
+        🔁 مكرر ${gi + 1}: "${escAttr(group[0].name.replace(/\.[^.]+$/, ''))}" — ${group.length} نسخ
+      </div>
+      <table class="data-table" style="margin:0">
+        <thead><tr><th>#</th><th>الاسم الكامل</th><th>رابط</th></tr></thead>
+        <tbody>`;
+    group.forEach((f, i) => {
+      const label = i === 0 ? '🟢 الأول' : `🔴 مكرر ${i}`;
+      const link  = f.webViewLink || `https://drive.google.com/file/d/${f.id}/view`;
+      html += `<tr>
+        <td style="white-space:nowrap">${label}</td>
+        <td style="font-size:12px;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escAttr(f.name)}</td>
+        <td><a href="${escAttr(link)}" target="_blank" style="color:var(--accent);font-size:12px;white-space:nowrap">🔗 فتح</a></td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  });
+  html += `</div>`;
+
+  el.innerHTML = html;
+  addLog('vl-log', `🔍 تحليل التكرار: ${dupes.length} مجموعة مكررة من أصل ${vlVideos.length} فيديو`, dupes.length ? 'e' : 's');
 }
 
 async function vlWriteToSheet() {
