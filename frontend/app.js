@@ -1328,7 +1328,13 @@ function renderMonFolders() {
     <div class="sel-folder-item">
       <span style="font-size:18px">📁</span>
       <div style="flex:1;min-width:0">
-        <div class="sfi-name">${escAttr(f.name)}</div>
+        <div class="sfi-name">
+          <a href="https://drive.google.com/drive/folders/${escAttr(f.id)}" target="_blank"
+             style="color:var(--accent-text);text-decoration:none;font-weight:600"
+             title="فتح المجلد في Drive">
+            ${escAttr(f.name)} ↗
+          </a>
+        </div>
         <div class="sfi-path">${escAttr(f.path || f.id)}</div>
       </div>
       <button class="btn btn-sm" onclick="monRemoveFolder(${i})" style="padding:3px 8px;color:var(--danger)">✕</button>
