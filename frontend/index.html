@@ -313,8 +313,13 @@
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px">
         <div>
-          <div class="label">اسم الورقة (Sheet Name)</div>
-          <input type="text" id="vl-sheet-name" value="Sheet1" placeholder="Sheet1"/>
+          <div class="label" style="display:flex;align-items:center;justify-content:space-between">
+            <span>اسم الورقة</span>
+            <span id="vl-sheet-load-status" style="font-size:11px;color:var(--text3)"></span>
+          </div>
+          <select id="vl-sheet-name" style="font-size:14px">
+            <option value="">-- أدخل Sheet ID أولاً --</option>
+          </select>
         </div>
         <div>
           <div class="label">عمود الرابط (الكتابة فيه)</div>

@@ -788,6 +788,8 @@ function vlSetRangeMode(mode) {
   document.getElementById('vl-range-inputs').style.display = mode === 'range' ? 'block' : 'none';
 }
 
+let _vlSheetLoadTimer = null;
+
 function vlParseSheetId(input) {
   const m = input.value.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
   const el = document.getElementById('vl-sheet-id-parsed');
@@ -796,6 +798,38 @@ function vlParseSheetId(input) {
     el.textContent = '✅ Sheet ID: ' + m[1];
   } else {
     el.style.display = 'none';
+  }
+  // Auto-load sheet names after user stops typing (500ms debounce)
+  clearTimeout(_vlSheetLoadTimer);
+  _vlSheetLoadTimer = setTimeout(vlAutoLoadSheetNames, 500);
+}
+
+async function vlAutoLoadSheetNames() {
+  const rawInput = document.getElementById('vl-sheet-id').value.trim();
+  const urlMatch = rawInput.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  const sheetId  = urlMatch ? urlMatch[1] : rawInput;
+  if (!sheetId || sheetId.length < 10) return;
+  if (!token) return;
+
+  const status = document.getElementById('vl-sheet-load-status');
+  const sel    = document.getElementById('vl-sheet-name');
+  status.textContent = '⏳ جاري الجلب...';
+
+  try {
+    const r = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}?fields=sheets.properties`,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error?.message);
+
+    const sheets = d.sheets?.map(s => s.properties.title) || [];
+    sel.innerHTML = sheets.map(s => `<option value="${escAttr(s)}">${escAttr(s)}</option>`).join('');
+    status.textContent = `✅ ${sheets.length} ورقة`;
+    status.style.color = 'var(--success)';
+  } catch (e) {
+    status.textContent = '❌ ' + (e.message || 'تعذّر الجلب');
+    status.style.color = 'var(--danger)';
   }
 }
 
