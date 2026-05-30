@@ -317,7 +317,7 @@
             <span>اسم الورقة</span>
             <span id="vl-sheet-load-status" style="font-size:11px;color:var(--text3)"></span>
           </div>
-          <select id="vl-sheet-name" style="font-size:14px">
+          <select id="vl-sheet-name" style="font-size:14px" onchange="vlAutoDetectLastRow()">
             <option value="">-- أدخل Sheet ID أولاً --</option>
           </select>
         </div>
@@ -333,7 +333,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:8px">
           <div>
             <div class="label">عمود الأرقام</div>
-            <input type="text" id="vl-num-col" value="A" placeholder="A" style="text-align:center;font-weight:600"/>
+            <input type="text" id="vl-num-col" value="A" placeholder="A" style="text-align:center;font-weight:600" oninput="vlAutoDetectLastRow()"/>
           </div>
           <div>
             <div class="label">صف البداية (بعد الهيدر)</div>

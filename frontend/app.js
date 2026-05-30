@@ -814,6 +814,7 @@ async function vlAutoLoadSheetNames() {
   const status = document.getElementById('vl-sheet-load-status');
   const sel    = document.getElementById('vl-sheet-name');
   status.textContent = '⏳ جاري الجلب...';
+  status.style.color = 'var(--text3)';
 
   try {
     const r = await fetch(
@@ -827,9 +828,52 @@ async function vlAutoLoadSheetNames() {
     sel.innerHTML = sheets.map(s => `<option value="${escAttr(s)}">${escAttr(s)}</option>`).join('');
     status.textContent = `✅ ${sheets.length} ورقة`;
     status.style.color = 'var(--success)';
+
+    // Auto-detect last row after sheet names load
+    await vlAutoDetectLastRow();
   } catch (e) {
     status.textContent = '❌ ' + (e.message || 'تعذّر الجلب');
     status.style.color = 'var(--danger)';
+  }
+}
+
+async function vlAutoDetectLastRow() {
+  const rawInput = document.getElementById('vl-sheet-id').value.trim();
+  const urlMatch = rawInput.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  const sheetId  = urlMatch ? urlMatch[1] : rawInput;
+  const sheetName = document.getElementById('vl-sheet-name').value;
+  const numCol    = (document.getElementById('vl-num-col').value || 'A').toUpperCase();
+  const startRow  = parseInt(document.getElementById('vl-start-row').value) || 2;
+  if (!sheetId || !sheetName) return;
+
+  const endRowEl = document.getElementById('vl-end-row');
+  endRowEl.placeholder = '⏳ جاري الكشف...';
+
+  try {
+    // Fetch the entire number column (up to 2000 rows) to find last non-empty
+    const safeSheet = sheetName.replace(/'/g, "''");
+    const readRange = `'${safeSheet}'!${numCol}${startRow}:${numCol}${startRow + 1999}`;
+    const r = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values:batchGet?ranges=${encodeURIComponent(readRange)}&majorDimension=ROWS`,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error?.message);
+
+    const rows = d.valueRanges?.[0]?.values || [];
+    // Find last row that has a non-empty value
+    let lastNonEmpty = 0;
+    rows.forEach((row, i) => {
+      if ((row[0] ?? '').toString().trim() !== '') lastNonEmpty = i;
+    });
+
+    const lastRow = startRow + lastNonEmpty;
+    endRowEl.value = lastRow;
+    endRowEl.placeholder = lastRow;
+    endRowEl.style.color = 'var(--success)';
+    endRowEl.title = `آخر صف فيه بيانات: ${lastRow}`;
+  } catch {
+    endRowEl.placeholder = '301';
   }
 }
 
