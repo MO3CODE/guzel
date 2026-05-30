@@ -94,8 +94,9 @@ let _nodeId = 0;
 // Init
 // ═══════════════════════════════════════════
 (async function init() {
-  // Restore saved token
-  if (token) {
+  // Try auto-refresh first; fall back to manual token
+  const autoOk = await autoFetchToken();
+  if (!autoOk && token) {
     document.getElementById('token-inp').value = token;
     await verifyToken(true);
   }
@@ -125,8 +126,30 @@ function switchTab(n) {
 }
 
 // ─── Token ───────────────────────────────────
-async function verifyToken(silent = false) {
-  token = document.getElementById('token-inp').value.trim();
+let _autoTokenTimer = null;
+
+// Try to get token from backend (auto-refresh flow).
+// Falls back to manual input if env vars not configured.
+async function autoFetchToken() {
+  try {
+    const r = await fetch(`${API_BASE}/token`);
+    const d = await r.json();
+    if (r.ok && d.access_token) {
+      token = d.access_token;
+      localStorage.setItem('drive_token', token);
+      await verifyToken(true, token); // verify + update UI
+      // Schedule next refresh 55 min from now
+      clearTimeout(_autoTokenTimer);
+      _autoTokenTimer = setTimeout(autoFetchToken, 55 * 60 * 1000);
+      return true;
+    }
+  } catch { /* server not configured — fall through to manual */ }
+  return false;
+}
+
+async function verifyToken(silent = false, overrideToken) {
+  if (overrideToken) token = overrideToken;
+  else token = document.getElementById('token-inp').value.trim();
   if (!token) return;
   try {
     const r = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
@@ -139,6 +162,11 @@ async function verifyToken(silent = false) {
       document.getElementById('conn-label').textContent = d.user?.displayName || 'متصل';
       document.getElementById('conn-label').style.color = '#166534';
       document.getElementById('create-btn').disabled = false;
+      // Hide manual token card if auto-mode is active
+      if (overrideToken) {
+        document.getElementById('token-card-manual').style.display = 'none';
+        document.getElementById('token-auto-badge').style.display = 'flex';
+      }
     } else {
       localStorage.removeItem('drive_token');
       token = '';

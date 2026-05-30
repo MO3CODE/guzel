@@ -59,8 +59,17 @@
   <!-- Server status -->
   <div id="server-status" style="margin-bottom:12px"></div>
 
-  <!-- Google Drive token -->
-  <div class="token-card">
+  <!-- Auto-token badge (shown when server handles token automatically) -->
+  <div id="token-auto-badge" style="display:none;align-items:center;gap:10px;padding:10px 16px;background:var(--success-bg);border:1px solid #86efac;border-radius:var(--radius-lg);margin-bottom:12px;font-size:13px;color:var(--success)">
+    <span style="font-size:18px">🔄</span>
+    <div>
+      <strong>تجديد تلقائي للتوكن</strong> — الاتصال بـ Google Drive يتجدد تلقائياً كل ساعة
+      <span id="conn-auto-user" style="color:var(--text2);margin-right:8px"></span>
+    </div>
+  </div>
+
+  <!-- Google Drive token (manual — hidden when auto-mode active) -->
+  <div class="token-card" id="token-card-manual">
     <div class="token-card-title">🔑 الاتصال بـ Google Drive</div>
     <div class="token-row">
       <input type="password" id="token-inp" placeholder="أدخل Access Token من Google OAuth..."/>
