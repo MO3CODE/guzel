@@ -2,30 +2,27 @@ import { AuthService } from './AuthService.js';
 
 const PIN_MAX = 6;
 let _pin = '';
+let _successCallback = null;
 
 export function initPinScreen(onSuccess) {
+  _successCallback = onSuccess;          // store once on init
   if (AuthService.isAuthenticated()) { _hide(); onSuccess(); return; }
 
   document.addEventListener('keydown', e => {
     if (document.getElementById('pin-screen')?.classList.contains('hide')) return;
-    if (e.key >= '0' && e.key <= '9') _key(e.key, onSuccess);
+    if (e.key >= '0' && e.key <= '9') _key(e.key);
     else if (e.key === 'Backspace') _del();
   });
 }
 
-export function pinKey(k) {
-  _key(k, _successCallback);
-}
-export function pinDel() { _del(); }
+export function pinKey(k) { _key(k); }
+export function pinDel()  { _del(); }
 
-let _successCallback = null;
-
-function _key(k, onSuccess) {
-  _successCallback = onSuccess;
+function _key(k) {
   if (_pin.length >= PIN_MAX) return;
   _pin += k;
   _renderDots();
-  if (_pin.length === PIN_MAX) _submit(onSuccess);
+  if (_pin.length === PIN_MAX) _submit();
 }
 
 function _del() {
@@ -42,12 +39,12 @@ function _renderDots(error = false) {
   }
 }
 
-async function _submit(onSuccess) {
+async function _submit() {
   document.getElementById('pin-error').textContent = '';
   try {
     await AuthService.login(_pin);
     _hide();
-    onSuccess?.();
+    _successCallback?.();
   } catch (e) {
     document.getElementById('pin-error').textContent = e.message;
     _renderDots(true);
