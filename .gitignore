@@ -1,2 +1,8 @@
 backend/.env
 backend/node_modules/
+video-local/node_modules/
+video-local/cache/
+video-local/music/
+video-local/output/
+video-local/work/
+video-local/package-lock.json

@@ -119,7 +119,7 @@ let _nodeId = 0;
 
 // ─── Tabs ────────────────────────────────────
 function switchTab(n) {
-  ['folders', 'browse', 'pdf-extract', 'pdf-merge', 'video-links', 'monitor', 'whatsapp'].forEach((t, i) => {
+  ['folders', 'browse', 'pdf-extract', 'pdf-merge', 'video-links', 'montage', 'monitor', 'whatsapp'].forEach((t, i) => {
     document.querySelectorAll('.tab')[i].classList.toggle('active', t === n);
     document.getElementById('tab-' + t).classList.toggle('active', t === n);
   });
@@ -1802,6 +1802,262 @@ async function waLogout() {
   clearInterval(waPollTimer);
   waRenderStatus({ status: 'offline' });
   addLog('wa-log', '🚪 تم تسجيل الخروج', 'i');
+}
+
+// ═══════════════════════════════════════════
+// VIDEO MONTAGE (local FFmpeg service :3002)
+// ═══════════════════════════════════════════
+const VM_BASE = 'http://localhost:3002';
+let vmStack = [], vmSelectedFolder = null, vmClips = [], vmMusicId = null, vmOnline = false;
+
+async function vmConnect() {
+  try {
+    const r = await fetch(`${VM_BASE}/status`);
+    const d = await r.json();
+    if (!d.ok) throw new Error();
+    vmOnline = true;
+    document.getElementById('vm-offline').style.display = 'none';
+    document.getElementById('vm-online').style.display = 'flex';
+    document.getElementById('vm-source-card').style.display = 'block';
+    addLog('vm-log', '✅ خدمة المونتاج متصلة — FFmpeg جاهز', 's');
+    if (!token) addLog('vm-log', '⚠️ اتصل بـ Google Drive أولاً (أعلى الصفحة)', 'e');
+  } catch {
+    vmOnline = false;
+    addLog('vm-log', '❌ الخدمة غير مشغّلة — شغّل start.bat من مجلد video-local', 'e');
+  }
+}
+
+// try silently on tab open
+document.querySelectorAll('.tab').forEach(b => {
+  if (b.textContent.includes('المونتاج')) b.addEventListener('click', () => { if (!vmOnline) vmConnect(); });
+});
+
+// ─── Folder browse (same pattern as vl) ──────
+async function vmLoadRoot() { vmStack = []; vmLoadBrowser(null); }
+
+async function vmLoadBrowser(folderId) {
+  if (!token) { alert('يرجى الاتصال بـ Drive أولاً'); return; }
+  const el = document.getElementById('vm-folder-browser');
+  el.innerHTML = '<div class="empty-state"><span class="spin"></span> جاري التحميل...</div>';
+  try {
+    const folders = await listFolders(folderId);
+    vmUpdateBC();
+    document.getElementById('vm-up-btn').disabled = !vmStack.length;
+    if (!folders.length) { el.innerHTML = '<div class="empty-state">لا توجد مجلدات فرعية — يمكنك اختيار المجلد الحالي</div>'; }
+    else {
+      el.innerHTML = folders.map(f =>
+        `<div class="folder-item">
+          <span>📁</span><span class="fi-name" style="flex:1">${escAttr(f.name)}</span>
+          <button class="btn btn-sm" onclick="event.stopPropagation();vmSelectFolder('${f.id}','${escJs(f.name)}')">✅ اختيار</button>
+          <button class="btn btn-sm" onclick="event.stopPropagation();vmOpenF('${f.id}','${escJs(f.name)}')">↵ دخول</button>
+        </div>`).join('');
+    }
+    if (vmStack.length) {
+      const cur = vmStack[vmStack.length - 1];
+      el.innerHTML = `<div class="folder-item" style="background:var(--accent-bg)">
+        <span>📂</span><span style="flex:1;font-weight:600">المجلد الحالي: ${escAttr(cur.name)}</span>
+        <button class="btn btn-sm btn-primary" onclick="vmSelectFolder('${cur.id}','${escJs(cur.name)}')">✅ اختيار هذا المجلد</button>
+      </div>` + el.innerHTML;
+    }
+  } catch (e) { el.innerHTML = `<div class="empty-state">❌ ${escAttr(e.message)}</div>`; }
+}
+
+function vmOpenF(id, name) { vmStack.push({ id, name }); vmLoadBrowser(id); }
+function vmGoUp() {
+  if (!vmStack.length) return;
+  vmStack.pop();
+  vmLoadBrowser(vmStack.length ? vmStack[vmStack.length - 1].id : null);
+}
+function vmUpdateBC() {
+  let h = `<span class="bc-item" onclick="vmStack=[];vmLoadBrowser(null)">Drive</span>`;
+  vmStack.forEach((b, i) => {
+    h += `<span style="color:var(--text3)"> › </span>`;
+    h += i < vmStack.length - 1
+      ? `<span class="bc-item" onclick="vmStack=vmStack.slice(0,${i + 1});vmLoadBrowser('${b.id}')">${escAttr(b.name)}</span>`
+      : `<span class="bc-cur">${escAttr(b.name)}</span>`;
+  });
+  document.getElementById('vm-breadcrumb').innerHTML = h;
+}
+
+function vmSelectFolder(id, name) {
+  vmSelectedFolder = { id, name };
+  document.getElementById('vm-selected-folder').style.display = 'block';
+  document.getElementById('vm-sel-name').textContent = name;
+  addLog('vm-log', `📂 المجلد المختار: ${name}`, 'i');
+}
+
+// ─── Fetch videos ────────────────────────────
+async function vmFetchVideos() {
+  if (!vmSelectedFolder) return;
+  addLog('vm-log', `🔍 سحب الفيديوهات من: ${vmSelectedFolder.name}`, 'i');
+  try {
+    let files = await vlListVideosInFolder(vmSelectedFolder.id);
+    if (!files.length) { addLog('vm-log', '⚠️ لا توجد فيديوهات في هذا المجلد', 'e'); return; }
+    files.sort((a, b) => a.name.localeCompare(b.name, 'ar', { numeric: true, sensitivity: 'base' }));
+    vmClips = files.map(f => ({ id: f.id, name: f.name, checked: true, info: null }));
+    addLog('vm-log', `✅ ${files.length} فيديو — رتّبها وحدد المطلوب ثم اضغط "تحليل"`, 's');
+    vmRenderClips();
+    document.getElementById('vm-clips-card').style.display = 'block';
+    document.getElementById('vm-settings-card').style.display = 'block';
+    document.getElementById('vm-music-card').style.display = 'block';
+    document.getElementById('vm-render-card').style.display = 'block';
+  } catch (e) { addLog('vm-log', '❌ ' + e.message, 'e'); }
+}
+
+function vmRenderClips() {
+  const el = document.getElementById('vm-clips-list');
+  document.getElementById('vm-clips-count').textContent = vmClips.filter(c => c.checked).length + ' / ' + vmClips.length;
+  el.innerHTML = vmClips.map((c, i) => `
+    <div class="folder-item" style="${c.checked ? '' : 'opacity:.45'}">
+      <input type="checkbox" ${c.checked ? 'checked' : ''} onchange="vmClips[${i}].checked=this.checked;vmRenderClips()" style="width:15px;height:15px">
+      <span style="font-family:var(--mono);font-size:11px;color:var(--text3);min-width:22px">${i + 1}</span>
+      <span class="fi-name" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🎬 ${escAttr(c.name)}</span>
+      ${c.info ? `<span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${c.info.duration.toFixed(1)}ث • ${c.info.width}×${c.info.height}${c.info.hasAudio ? '' : ' 🔇'}</span>` : ''}
+      <button class="btn btn-sm" ${i === 0 ? 'disabled' : ''} onclick="vmMove(${i},-1)">▲</button>
+      <button class="btn btn-sm" ${i === vmClips.length - 1 ? 'disabled' : ''} onclick="vmMove(${i},1)">▼</button>
+    </div>`).join('');
+}
+
+function vmMove(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= vmClips.length) return;
+  [vmClips[i], vmClips[j]] = [vmClips[j], vmClips[i]];
+  vmRenderClips();
+}
+
+function vmSelectAll(v) { vmClips.forEach(c => c.checked = v); vmRenderClips(); }
+
+// ─── Poll job helper ─────────────────────────
+async function vmPollJob(jobId, onUpdate) {
+  let lastLog = 0;
+  while (true) {
+    await new Promise(r => setTimeout(r, 1200));
+    const r = await fetch(`${VM_BASE}/job/${jobId}`);
+    if (!r.ok) throw new Error('فُقد الاتصال بالخدمة');
+    const j = await r.json();
+    for (; lastLog < j.logs.length; lastLog++) addLog('vm-log', j.logs[lastLog].msg, 'i');
+    onUpdate?.(j);
+    if (j.done) {
+      if (j.error) throw new Error(j.error);
+      return j;
+    }
+  }
+}
+
+// ─── Analyze ─────────────────────────────────
+async function vmAnalyze() {
+  const selected = vmClips.filter(c => c.checked);
+  if (!selected.length) { alert('حدد مقطعاً واحداً على الأقل'); return; }
+  if (!vmOnline) { alert('شغّل خدمة المونتاج أولاً'); return; }
+  addLog('vm-log', `🔬 تحليل ${selected.length} مقطع (يشمل التنزيل لأول مرة — قد يستغرق وقتاً حسب الحجم)`, 'i');
+  vmShowProgress(true);
+  try {
+    const r = await fetch(`${VM_BASE}/analyze`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, files: selected.map(c => ({ id: c.id, name: c.name })) }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    const job = await vmPollJob(d.jobId, j => vmSetProgress(j.stage, j.percent));
+    for (const res of job.result.clips) {
+      const c = vmClips.find(x => x.id === res.id);
+      if (c) c.info = res;
+    }
+    vmRenderClips();
+    const withInfo = vmClips.filter(c => c.checked && c.info);
+    const totalSec = withInfo.reduce((s, c) => s + c.info.duration, 0);
+    const maxClip = parseFloat(document.getElementById('vm-max-clip').value) || 0;
+    const effSec = withInfo.reduce((s, c) => s + (maxClip ? Math.min(c.info.duration, maxClip) : c.info.duration), 0);
+    const noAudio = withInfo.filter(c => !c.info.hasAudio).length;
+    document.getElementById('vm-analysis-summary').style.display = 'block';
+    document.getElementById('vm-analysis-summary').innerHTML =
+      `📊 <strong>${withInfo.length} مقطع</strong> — المدة الإجمالية: <strong>${vmFmtDur(totalSec)}</strong>` +
+      (maxClip ? ` — بعد القص (${maxClip}ث/مقطع): <strong>${vmFmtDur(effSec)}</strong>` : '') +
+      (noAudio ? ` — 🔇 ${noAudio} مقطع بلا صوت` : '') +
+      (withInfo.length > 25 ? '<br>⚠️ عدد كبير من المقاطع مع الانتقالات قد يستهلك ذاكرة عالية — يُنصح بتقسيم العمل أو اختيار "بدون انتقالات"' : '');
+    addLog('vm-log', `✅ اكتمل التحليل — المدة الإجمالية ${vmFmtDur(totalSec)}`, 's');
+  } catch (e) { addLog('vm-log', '❌ ' + e.message, 'e'); }
+  vmShowProgress(false);
+}
+
+function vmFmtDur(sec) {
+  const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+  return m ? `${m}د ${s}ث` : `${s}ث`;
+}
+
+// ─── Music upload ────────────────────────────
+async function vmUploadMusic(file) {
+  if (!file) return;
+  if (!vmOnline) { alert('شغّل خدمة المونتاج أولاً'); return; }
+  document.getElementById('vm-music-label').textContent = '⏳ جاري رفع الموسيقى للخدمة المحلية...';
+  try {
+    const r = await fetch(`${VM_BASE}/music?name=${encodeURIComponent(file.name)}`, { method: 'POST', body: file });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    vmMusicId = d.musicId;
+    document.getElementById('vm-music-label').textContent = 'اضغط لتغيير ملف الموسيقى';
+    document.getElementById('vm-music-ready').style.display = 'block';
+    document.getElementById('vm-music-ready').innerHTML =
+      `🎵 <strong>${escAttr(file.name)}</strong> — المدة ${vmFmtDur(d.duration)} — ستُكرَّر على طول الفيديو
+       <button class="btn btn-sm" style="margin-right:8px;color:var(--danger)" onclick="vmMusicId=null;this.parentElement.style.display='none'">✕ إزالة</button>`;
+    addLog('vm-log', `🎵 موسيقى جاهزة: ${file.name}`, 's');
+  } catch (e) {
+    document.getElementById('vm-music-label').textContent = 'اضغط لاختيار ملف موسيقى (MP3 / M4A / WAV)';
+    addLog('vm-log', '❌ فشل رفع الموسيقى: ' + e.message, 'e');
+  }
+}
+
+// ─── Render ──────────────────────────────────
+function vmShowProgress(show) {
+  document.getElementById('vm-prog-wrap').style.display = show ? 'block' : 'none';
+  document.getElementById('vm-stage-label').style.display = show ? 'block' : 'none';
+  document.getElementById('vm-render-btn').disabled = show;
+  if (!show) document.getElementById('vm-prog-bar').style.width = '0%';
+}
+function vmSetProgress(stage, pct) {
+  document.getElementById('vm-stage-label').textContent = `${stage} — ${pct}%`;
+  document.getElementById('vm-prog-bar').style.width = pct + '%';
+}
+
+async function vmRender() {
+  const selected = vmClips.filter(c => c.checked);
+  if (!selected.length) { alert('حدد مقطعاً واحداً على الأقل'); return; }
+  if (!vmOnline) { alert('شغّل خدمة المونتاج أولاً'); return; }
+  if (!token) { alert('اتصل بـ Google Drive أولاً'); return; }
+  document.getElementById('vm-result').style.display = 'none';
+  const settings = {
+    transition: document.getElementById('vm-transition').value,
+    transitionSec: parseFloat(document.getElementById('vm-transition-sec').value) || 1,
+    maxClipSec: parseFloat(document.getElementById('vm-max-clip').value) || 0,
+    resolution: document.getElementById('vm-resolution').value,
+    outputName: document.getElementById('vm-output-name').value.trim() || 'montage.mp4',
+    musicId: vmMusicId,
+    musicVolume: (parseInt(document.getElementById('vm-music-vol').value) || 30) / 100,
+    muteOriginal: document.getElementById('vm-mute-original').checked,
+    uploadFolderId: document.getElementById('vm-upload-back').checked ? vmSelectedFolder?.id : null,
+  };
+  if (!settings.outputName.toLowerCase().endsWith('.mp4')) settings.outputName += '.mp4';
+  addLog('vm-log', `🚀 بدء المونتاج — ${selected.length} مقطع`, 'i');
+  vmShowProgress(true);
+  try {
+    const r = await fetch(`${VM_BASE}/render`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, clips: selected.map(c => ({ id: c.id, name: c.name })), settings }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    const job = await vmPollJob(d.jobId, j => vmSetProgress(j.stage, j.percent));
+    const res = job.result;
+    const el = document.getElementById('vm-result');
+    el.style.display = 'block';
+    el.innerHTML =
+      `<div style="font-weight:600;color:var(--success);margin-bottom:8px">🎉 اكتمل المونتاج — ${vmFmtDur(res.duration)} • ${(res.sizeBytes / 1048576).toFixed(1)}MB</div>
+       <div style="display:flex;gap:8px;flex-wrap:wrap">
+         <a class="btn btn-primary" href="${VM_BASE}${res.downloadUrl}" style="text-decoration:none">⬇ تنزيل على الجهاز</a>
+         ${res.drive?.webViewLink ? `<a class="btn" href="${escAttr(res.drive.webViewLink)}" target="_blank" style="text-decoration:none">📂 فتح في Drive</a>` : ''}
+       </div>`;
+  } catch (e) { addLog('vm-log', '❌ ' + e.message, 'e'); }
+  vmShowProgress(false);
 }
 
 // ═══════════════════════════════════════════

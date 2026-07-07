@@ -89,6 +89,7 @@
     <button class="tab" onclick="switchTab('pdf-extract')">📄 استخراج PDF</button>
     <button class="tab" onclick="switchTab('pdf-merge')">🗂 دمج PDF</button>
     <button class="tab" onclick="switchTab('video-links')">🎬 روابط الفيديو</button>
+    <button class="tab" onclick="switchTab('montage')">🎞 المونتاج</button>
     <button class="tab" onclick="switchTab('monitor')">👁 مراقبة المجلدات</button>
     <button class="tab" onclick="switchTab('whatsapp')" id="tab-wa-btn">💬 واتساب <span id="wa-badge" style="display:none;background:#ef4444;color:#fff;border-radius:999px;font-size:10px;padding:1px 6px;margin-right:4px"></span></button>
   </div>
@@ -437,6 +438,150 @@
     </div>
 
     <div class="log" id="vl-log">انتظار تحديد المجلد...</div>
+
+  </div>
+
+  <!-- ══ TAB: Video Montage ══ -->
+  <div id="tab-montage" class="panel">
+
+    <!-- Service status -->
+    <div class="card" id="vm-service-card">
+      <div class="card-title">🎞 خدمة المونتاج المحلية</div>
+      <div id="vm-offline" style="text-align:center;padding:1.5rem 0">
+        <div style="font-size:48px;margin-bottom:12px">🎬</div>
+        <div style="font-weight:600;margin-bottom:8px">خدمة المونتاج غير مشغّلة</div>
+        <div style="font-size:13px;color:var(--text3);margin-bottom:16px">شغّل <code>start.bat</code> من مجلد <code>video-local</code> أولاً — المعالجة تتم على جهازك بجودة كاملة</div>
+        <button class="btn btn-primary" onclick="vmConnect()">🔄 محاولة الاتصال</button>
+      </div>
+      <div id="vm-online" style="display:none;align-items:center;gap:12px;padding:10px;background:var(--success-bg);border-radius:var(--radius)">
+        <span style="font-size:24px">✅</span>
+        <div>
+          <div style="font-weight:600;color:var(--success)">خدمة المونتاج متصلة</div>
+          <div style="font-size:12px;color:var(--text3)">FFmpeg جاهز — التنزيل والمعالجة والرفع تتم محلياً</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Source folder -->
+    <div class="card" id="vm-source-card" style="display:none">
+      <div class="card-title">📂 مجلد الفيديوهات في Drive</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="btn btn-primary" onclick="vmLoadRoot()">تحميل مجلداتي</button>
+        <button class="btn" onclick="vmGoUp()" id="vm-up-btn" disabled>↑ رجوع</button>
+      </div>
+      <div class="breadcrumb" id="vm-breadcrumb"><span class="bc-cur">Drive</span></div>
+      <div id="vm-folder-browser"><div class="empty-state">اضغط "تحميل مجلداتي" لتصفح المجلدات</div></div>
+      <div id="vm-selected-folder" style="display:none;margin-top:12px;padding:10px;background:var(--success-bg);border:1px solid #86efac;border-radius:var(--radius)">
+        <span style="color:var(--success);font-weight:600">✅ المجلد المختار: </span>
+        <span id="vm-sel-name" style="color:var(--success)"></span>
+        <button class="btn btn-sm" style="margin-right:8px" onclick="vmFetchVideos()">🔍 سحب الفيديوهات</button>
+      </div>
+    </div>
+
+    <!-- Clips list -->
+    <div class="card" id="vm-clips-card" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="card-title" style="margin-bottom:0">🎬 المقاطع المختارة (<span id="vm-clips-count">0</span>)</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" onclick="vmSelectAll(true)">تحديد الكل</button>
+          <button class="btn btn-sm" onclick="vmSelectAll(false)">إلغاء الكل</button>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">✅ حدد المقاطع ورتبها بأزرار ▲▼ — الترتيب هنا هو ترتيب الظهور في المونتاج</div>
+      <div id="vm-clips-list" style="display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto"></div>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn btn-primary" onclick="vmAnalyze()">🔬 تحليل المقاطع المحددة</button>
+      </div>
+      <div id="vm-analysis-summary" style="display:none;margin-top:10px;padding:10px;background:var(--accent-bg);border-radius:var(--radius);font-size:13px;color:var(--accent-text)"></div>
+    </div>
+
+    <!-- Montage settings -->
+    <div class="card" id="vm-settings-card" style="display:none">
+      <div class="card-title">⚙️ إعدادات المونتاج</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        <div>
+          <div class="label">الانتقال بين المقاطع</div>
+          <select id="vm-transition">
+            <option value="fade">تلاشي (Fade)</option>
+            <option value="fadeblack">تلاشي لأسود</option>
+            <option value="dissolve">ذوبان (Dissolve)</option>
+            <option value="wipeleft">مسح لليسار</option>
+            <option value="wiperight">مسح لليمين</option>
+            <option value="slideleft">انزلاق لليسار</option>
+            <option value="slideright">انزلاق لليمين</option>
+            <option value="smoothleft">انسياب ناعم</option>
+            <option value="circleopen">دائرة تنفتح</option>
+            <option value="pixelize">بكسلة</option>
+            <option value="radial">دوراني</option>
+            <option value="random">🎲 عشوائي لكل قطع</option>
+            <option value="none">بدون انتقالات</option>
+          </select>
+        </div>
+        <div>
+          <div class="label">مدة الانتقال (ثانية)</div>
+          <input type="number" id="vm-transition-sec" value="1" min="0.3" max="3" step="0.1" style="text-align:center"/>
+        </div>
+        <div>
+          <div class="label">أقصى مدة لكل مقطع (ثانية)</div>
+          <input type="number" id="vm-max-clip" placeholder="بلا حد" min="1" style="text-align:center"/>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+        <div>
+          <div class="label">دقة الإخراج</div>
+          <select id="vm-resolution">
+            <option value="1920x1080">Full HD — 1920×1080</option>
+            <option value="1280x720">HD — 1280×720</option>
+            <option value="source">نفس دقة أول مقطع</option>
+          </select>
+        </div>
+        <div>
+          <div class="label">اسم الملف الناتج</div>
+          <input type="text" id="vm-output-name" value="مونتاج_الأضاحي_2026.mp4"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- Music -->
+    <div class="card" id="vm-music-card" style="display:none">
+      <div class="card-title">🎵 الموسيقى الخلفية (اختياري)</div>
+      <div class="upload-zone" id="uz-music" onclick="document.getElementById('f-music').click()">
+        <div class="uz-icon">🎵</div>
+        <p id="vm-music-label">اضغط لاختيار ملف موسيقى (MP3 / M4A / WAV)</p>
+        <p class="uz-hint">تُرفع للخدمة المحلية وتُكرَّر تلقائياً على طول الفيديو مع خفوت في النهاية</p>
+      </div>
+      <input type="file" id="f-music" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg" style="display:none" onchange="vmUploadMusic(this.files[0])">
+      <div id="vm-music-ready" style="display:none;margin-top:10px;padding:10px;background:var(--success-bg);border:1px solid #86efac;border-radius:var(--radius);font-size:13px;color:var(--success)"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+        <div>
+          <div class="label">مستوى صوت الموسيقى: <strong id="vm-vol-label">30%</strong></div>
+          <input type="range" id="vm-music-vol" min="5" max="100" value="30" style="width:100%" oninput="document.getElementById('vm-vol-label').textContent=this.value+'%'"/>
+        </div>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;margin-top:14px">
+          <input type="checkbox" id="vm-mute-original" checked style="width:16px;height:16px">
+          <span>كتم الصوت الأصلي للمقاطع (موسيقى فقط)</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Output destination + render -->
+    <div class="card" id="vm-render-card" style="display:none">
+      <div class="card-title">🚀 إنشاء المونتاج</div>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;margin-bottom:10px">
+        <input type="checkbox" id="vm-upload-back" checked style="width:16px;height:16px">
+        <span>رفع الناتج إلى نفس مجلد المصدر في Drive بعد الانتهاء</span>
+      </label>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="vm-render-btn" onclick="vmRender()">🎞 بدء المونتاج الآن</button>
+      </div>
+      <div id="vm-stage-label" style="display:none;margin-top:12px;font-size:13px;font-weight:600;color:var(--accent-text)"></div>
+      <div class="progress-wrap" id="vm-prog-wrap" style="display:none;margin-top:8px">
+        <div class="progress-bar" id="vm-prog-bar"></div>
+      </div>
+      <div id="vm-result" style="display:none;margin-top:12px;padding:12px;background:var(--success-bg);border:1px solid #86efac;border-radius:var(--radius)"></div>
+    </div>
+
+    <div class="log" id="vm-log">في انتظار تشغيل خدمة المونتاج...</div>
 
   </div>
 
